@@ -1,0 +1,6 @@
+node_modules/
+kryno.db
+kryno.db-wal
+kryno.db-shm
+.env
+temp_audio_*

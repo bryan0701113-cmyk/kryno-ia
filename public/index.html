@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kryno IA 🔥 - Sua IA Completa</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔥</text></svg>">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- TELA DE LOGIN -->
+    <div id="login-screen" class="screen">
+      <div class="login-box">
+        <div class="logo">🔥</div>
+        <h1>Kryno IA</h1>
+        <p class="subtitle">Sua inteligência artificial completa</p>
+        <div id="google-login-container">
+          <a href="/auth/google" class="btn-google" id="google-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+            Entrar com Google
+          </a>
+          <p class="or">ou</p>
+        </div>
+        <button class="btn-guest" onclick="enterAsGuest()">Entrar como convidado</button>
+      </div>
+    </div>
+
+    <!-- TELA PRINCIPAL - CHAT -->
+    <div id="chat-screen" class="screen hidden">
+      <!-- SIDEBAR -->
+      <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <div class="logo-small">🔥 Kryno IA</div>
+        </div>
+        <div class="sidebar-menu">
+          <button class="menu-item active" onclick="switchTab('chat')" id="tab-chat">
+            <span>💬</span> Chat
+          </button>
+          <button class="menu-item" onclick="switchTab('imagina')" id="tab-imagina">
+            <span>🎨</span> Imagina
+          </button>
+          <button class="menu-item" onclick="switchTab('comandos')" id="tab-comandos">
+            <span>📋</span> Comandos
+          </button>
+          <button class="menu-item" onclick="switchTab('historico')" id="tab-historico">
+            <span>📜</span> Histórico
+          </button>
+          <button class="menu-item" onclick="switchTab('admin')" id="tab-admin">
+            <span>🔐</span> Admin
+          </button>
+        </div>
+        <div class="sidebar-footer">
+          <div id="user-info"></div>
+          <button class="logout-btn" onclick="logout()">Sair</button>
+        </div>
+      </div>
+
+      <!-- ÁREA PRINCIPAL -->
+      <div class="main">
+        <!-- CHAT -->
+        <div id="panel-chat" class="panel active">
+          <div class="chat-messages" id="chat-messages">
+            <div class="welcome-msg">
+              <div class="welcome-logo">🔥</div>
+              <h2>Kryno IA</h2>
+              <p>Olá! Sou a Kryno, sua IA completa. Posso te ajudar com TUDO!</p>
+              <p class="hint">Experimente: "cria uma cantada engraçada", "me dá um conselho amoroso", "resumo do livro Dom Casmurro"...</p>
+            </div>
+          </div>
+          <div class="chat-input-area">
+            <button class="btn-image" onclick="document.getElementById('image-upload').click()" title="Enviar imagem">📷</button>
+            <button class="btn-audio" onclick="document.getElementById('audio-upload').click()" title="Enviar áudio">🎤</button>
+            <input type="file" id="image-upload" accept="image/*" hidden onchange="handleImageUpload(event)">
+            <input type="file" id="audio-upload" accept="audio/*" hidden onchange="handleAudioUpload(event)">
+            <div class="image-preview" id="image-preview"></div>
+            <input type="text" id="chat-input" placeholder="Digite sua mensagem ou use 'Imagina...' para criar imagens..." onkeypress="if(event.key==='Enter')sendMessage()">
+            <button class="btn-send" onclick="sendMessage()">➤</button>
+          </div>
+        </div>
+
+        <!-- IMAGINA -->
+        <div id="panel-imagina" class="panel hidden">
+          <div class="imagina-container">
+            <h2>🎨 Imagina - Gerador de Imagens</h2>
+            <p>Digite "Imagina" seguido do que você quer ver. Ex: "Imagina gato samurai"</p>
+            <div class="imagina-input-row">
+              <input type="text" id="imagina-input" placeholder="Imagina..." onkeypress="if(event.key==='Enter')gerarImagem()">
+              <button class="btn-send" onclick="gerarImagem()">Gerar</button>
+            </div>
+            <div class="imagina-gallery" id="imagina-gallery"></div>
+          </div>
+        </div>
+
+        <!-- COMANDOS -->
+        <div id="panel-comandos" class="panel hidden">
+          <div class="comandos-container">
+            <h2>📋 Lista Mega Kryno - Comandos</h2>
+            <input type="text" id="comando-search" placeholder="Buscar comando..." oninput="filtrarComandos()" class="search-input">
+            <div id="comandos-list" class="comandos-list"></div>
+          </div>
+        </div>
+
+        <!-- HISTÓRICO -->
+        <div id="panel-historico" class="panel hidden">
+          <div class="historico-container">
+            <h2>📜 Histórico de Conversas</h2>
+            <div class="historico-actions">
+              <input type="text" id="historico-search" placeholder="Buscar no histórico..." onkeypress="if(event.key==='Enter')buscarHistorico()">
+              <button onclick="carregarHistorico()">Atualizar</button>
+              <button onclick="exportarHistorico()">Exportar TXT</button>
+              <button class="btn-danger" onclick="limparHistorico()">Limpar tudo</button>
+            </div>
+            <div id="historico-list" class="historico-list"></div>
+          </div>
+        </div>
+
+        <!-- ADMIN -->
+        <div id="panel-admin" class="panel hidden">
+          <div class="admin-container">
+            <div id="admin-login-box">
+              <h2>🔐 Painel Admin</h2>
+              <input type="password" id="admin-pass" placeholder="Senha admin">
+              <input type="text" id="admin-pin" placeholder="PIN (1212)">
+              <button onclick="loginAdmin()">Entrar como Admin</button>
+              <p class="hint">Use a senha ou o PIN para acessar</p>
+            </div>
+            <div id="admin-panel" class="hidden">
+              <h2>🔐 Painel Admin - Kryno IA</h2>
+              <div class="admin-stats" id="admin-stats"></div>
+              <h3>Usuários Cadastrados</h3>
+              <div id="admin-users-list" class="admin-users-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="/js/app.js"></script>
+</body>
+</html>
