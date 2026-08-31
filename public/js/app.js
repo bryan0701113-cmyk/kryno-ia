@@ -507,3 +507,8 @@ document.addEventListener('keydown', (e) => {
     closeSidebarOnMobile();
   }
 });
+
+// ===== LOGIN APPLE (placeholder até configurar Sign in with Apple) =====
+function loginApple() {
+  alert('Login com Apple em breve! Por enquanto, use Google ou entre sem cadastro. 🍎');
+}
