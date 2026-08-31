@@ -42,10 +42,7 @@
         </div>
 
         <div class="sidebar-nav">
-          <button class="menu-item active" onclick="switchTab('chat')" id="tab-chat">💬 Chat</button>
-          <button class="menu-item" onclick="switchTab('imagina')" id="tab-imagina">🎨 Imagina</button>
-          <button class="menu-item" onclick="switchTab('comandos')" id="tab-comandos">📋 Comandos</button>
-          <button class="menu-item" onclick="switchTab('admin')" id="tab-admin">🔐 Admin</button>
+          <button class="menu-item planos-btn" onclick="abrirPlanos()" id="tab-planos">💎 Planos</button>
         </div>
 
         <div class="sidebar-historico">
@@ -151,6 +148,67 @@
         </div>
       </div>
     </div>
+
+      <!-- MODAL DE PLANOS -->
+      <div class="planos-overlay hidden" id="planos-overlay" onclick="if(event.target===this)fecharPlanos()">
+        <div class="planos-modal">
+          <button class="planos-close" onclick="fecharPlanos()">✕</button>
+          <div class="planos-header">
+            <h2>💎 Escolha seu Plano</h2>
+            <p>Desbloqueie o máximo da Kryno IA</p>
+          </div>
+          <div class="planos-grid">
+
+            <div class="plano-card plano-gratis">
+              <div class="plano-nome">Kryno Grátis</div>
+              <div class="plano-preco">R$ 0<span>/sempre</span></div>
+              <div class="plano-tag">Todo mundo começa aqui</div>
+              <ul class="plano-lista">
+                <li>✅ Acesso ao chat da Kryno IA</li>
+                <li>✅ Perguntas ilimitadas por dia*</li>
+                <li>✅ Geração de imagens (Imagina)</li>
+                <li>✅ Histórico de conversas</li>
+              </ul>
+              <button class="plano-btn plano-btn-atual" disabled>Seu plano atual</button>
+            </div>
+
+            <div class="plano-card plano-pro">
+              <div class="plano-badge">MAIS ESCOLHIDO</div>
+              <div class="plano-nome">Kryno Pro 💎</div>
+              <div class="plano-preco">R$ 9,99<span>/mês</span></div>
+              <div class="plano-tag">140 mensagens por dia</div>
+              <ul class="plano-lista">
+                <li>💎 Selo de diamante 💎 no seu perfil</li>
+                <li>⚡ 140 mensagens por dia</li>
+                <li>🚀 Respostas mais rápidas</li>
+                <li>🎨 Mais gerações de imagem por dia</li>
+                <li>🚫 Sem anúncios</li>
+                <li>📌 Prioridade na fila de respostas</li>
+              </ul>
+              <button class="plano-btn plano-btn-pro" onclick="assinarPlano('pro')">Assinar Kryno Pro</button>
+            </div>
+
+            <div class="plano-card plano-premium">
+              <div class="plano-badge plano-badge-gold">TOP</div>
+              <div class="plano-nome">Kryno Premium 🥇</div>
+              <div class="plano-preco">R$ 16,99<span>/mês</span></div>
+              <div class="plano-tag">Mensagens ilimitadas</div>
+              <ul class="plano-lista">
+                <li>🥇 Selo de ouro 🥇 no seu perfil</li>
+                <li>♾️ Mensagens ilimitadas por dia</li>
+                <li>🚀 Respostas com prioridade máxima</li>
+                <li>🎨 Geração de imagens ilimitada</li>
+                <li>🎧 Suporte prioritário exclusivo</li>
+                <li>🆕 Acesso antecipado a novidades</li>
+                <li>🚫 Sem anúncios</li>
+              </ul>
+              <button class="plano-btn plano-btn-premium" onclick="assinarPlano('premium')">Assinar Kryno Premium</button>
+            </div>
+
+          </div>
+          <p class="planos-footer">Pagamento seguro · Cancele quando quiser</p>
+        </div>
+      </div>
   </div>
   <script src="/js/app.js"></script>
 </body>

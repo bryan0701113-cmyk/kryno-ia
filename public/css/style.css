@@ -316,3 +316,76 @@ body {
   .chat-input-area { padding: 12px 14px 16px; }
   .imagina-container, .comandos-container, .historico-container, .admin-container { padding: 18px; }
 }
+
+/* ===== BOTÃO PLANOS (sidebar) ===== */
+.planos-btn {
+  flex: 1 !important; width: 100%;
+  background: linear-gradient(135deg, rgba(168,85,247,.18), rgba(234,179,8,.12)) !important;
+  border: 1.5px solid #a855f7 !important; color: #fff !important; font-weight: 700 !important;
+  box-shadow: 0 0 14px rgba(168,85,247,.35);
+}
+.planos-btn:hover { box-shadow: 0 0 22px rgba(168,85,247,.6); }
+
+/* ===== MODAL DE PLANOS ===== */
+.planos-overlay {
+  position: fixed; inset: 0; background: rgba(5,2,10,.85); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center; z-index: 50; padding: 20px;
+  overflow-y: auto;
+}
+.planos-modal {
+  position: relative; background: #0f0a1c; border: 1.5px solid rgba(168,85,247,.4);
+  border-radius: 20px; padding: 36px 30px; max-width: 980px; width: 100%;
+  box-shadow: 0 0 50px rgba(168,85,247,.25); max-height: 92vh; overflow-y: auto;
+}
+.planos-close {
+  position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,.06);
+  border: 1px solid rgba(168,85,247,.3); color: #fff; width: 34px; height: 34px;
+  border-radius: 50%; cursor: pointer; font-size: 15px; transition: all .2s;
+}
+.planos-close:hover { background: rgba(239,68,68,.25); border-color: #ef4444; }
+.planos-header { text-align: center; margin-bottom: 30px; }
+.planos-header h2 {
+  font-size: 26px; color: #fff; margin-bottom: 8px; text-shadow: 0 0 20px rgba(168,85,247,.5);
+}
+.planos-header p { color: #a99cc0; font-size: 14px; }
+.planos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+@media (max-width: 900px) { .planos-grid { grid-template-columns: 1fr; } }
+
+.plano-card {
+  position: relative; background: #16101f; border: 1.5px solid rgba(168,85,247,.2);
+  border-radius: 16px; padding: 24px 20px; display: flex; flex-direction: column;
+  transition: transform .2s;
+}
+.plano-card:hover { transform: translateY(-4px); }
+.plano-badge {
+  position: absolute; top: -12px; right: 16px; background: linear-gradient(135deg, #a855f7, #7c3aed);
+  color: #fff; font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 20px;
+  box-shadow: 0 0 12px rgba(168,85,247,.6); letter-spacing: .5px;
+}
+.plano-badge-gold { background: linear-gradient(135deg, #f59e0b, #eab308); box-shadow: 0 0 12px rgba(234,179,8,.6); }
+.plano-nome { font-size: 19px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+.plano-preco { font-size: 30px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+.plano-preco span { font-size: 13px; font-weight: 400; color: #a99cc0; }
+.plano-tag { font-size: 13px; color: #a99cc0; margin-bottom: 16px; }
+.plano-lista { list-style: none; flex: 1; margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; }
+.plano-lista li { font-size: 13.5px; color: #cbbfe0; line-height: 1.4; }
+.plano-btn {
+  width: 100%; padding: 13px; border-radius: 12px; font-weight: 700; font-size: 14px;
+  cursor: pointer; border: none; transition: all .2s;
+}
+.plano-btn-atual {
+  background: rgba(255,255,255,.05); color: #6b5f82; border: 1px solid rgba(255,255,255,.1); cursor: default;
+}
+.plano-card.plano-pro { border-color: rgba(168,85,247,.5); box-shadow: 0 0 20px rgba(168,85,247,.15); }
+.plano-btn-pro {
+  background: linear-gradient(135deg, #a855f7, #7c3aed); color: #fff;
+  box-shadow: 0 0 16px rgba(168,85,247,.5);
+}
+.plano-btn-pro:hover { box-shadow: 0 0 26px rgba(168,85,247,.7); }
+.plano-card.plano-premium { border-color: rgba(234,179,8,.5); box-shadow: 0 0 20px rgba(234,179,8,.12); }
+.plano-btn-premium {
+  background: linear-gradient(135deg, #f59e0b, #eab308); color: #1a1206;
+  box-shadow: 0 0 16px rgba(234,179,8,.5);
+}
+.plano-btn-premium:hover { box-shadow: 0 0 26px rgba(234,179,8,.7); }
+.planos-footer { text-align: center; color: #6b5f82; font-size: 12px; margin-top: 24px; }

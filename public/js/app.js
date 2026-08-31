@@ -483,3 +483,27 @@ function escapeHtml(text) {
   div.textContent = text;
   return div.innerHTML;
 }
+
+// ===== PLANOS =====
+function abrirPlanos() {
+  document.getElementById('planos-overlay').classList.remove('hidden');
+  closeSidebarOnMobile();
+}
+
+function fecharPlanos() {
+  document.getElementById('planos-overlay').classList.add('hidden');
+}
+
+function assinarPlano(plano) {
+  // TODO: conectar aqui com o link de pagamento real (Kiwify / Mercado Pago / Stripe)
+  alert('Assinatura do plano ' + (plano === 'pro' ? 'Kryno Pro 💎' : 'Kryno Premium 🥇') + ' em breve! Estamos configurando o pagamento.');
+}
+
+// ===== ACESSO SECRETO AO ADMIN (Ctrl+Alt+A) =====
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.altKey && e.key.toLowerCase() === 'a') {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-admin').classList.add('active');
+    closeSidebarOnMobile();
+  }
+});
