@@ -201,7 +201,7 @@ function addMessage(sender, text) {
 
   const avatar = document.createElement('div');
   avatar.className = 'avatar';
-  avatar.textContent = sender === 'user' ? '🙂' : '⚡';
+  avatar.textContent = sender === 'user' ? '🥷' : '⚡';
 
   const col = document.createElement('div');
   col.className = 'msg-col';
