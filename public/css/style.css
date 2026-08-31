@@ -223,7 +223,7 @@ body {
   box-shadow: 0 0 14px rgba(168,85,247,.5);
 }
 .btn-send:hover { transform: scale(1.06); box-shadow: 0 0 22px rgba(168,85,247,.7); }
-.footer-credit { text-align: center; font-size: 12px; color: #4d4361; }
+.footer-credit { text-align: center; font-size: 11px; color: #3d3451; padding-top: 4px; }
 .footer-credit b { color: #a855f7; font-weight: 600; }
 
 /* ===== IMAGINA ===== */
@@ -412,3 +412,5 @@ body {
 }
 .plano-btn-premium:hover { box-shadow: 0 0 26px rgba(234,179,8,.7); }
 .planos-footer { text-align: center; color: #6b5f82; font-size: 12px; margin-top: 24px; }
+
+.footer-credit b { color: #6b5f82; font-weight: 600; }
