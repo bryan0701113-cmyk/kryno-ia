@@ -42,12 +42,22 @@ const upload = multer({
   limits: { fileSize: 25 * 1024 * 1024 } // 25MB
 });
 
-// ===== OPENAI =====
-let openai = null;
-if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'sk-sua-chave-aqui') {
+// ===== GROQ API (compatível com SDK OpenAI) =====
+let groq = null;
+if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'sua-chave-groq-aqui') {
   const { OpenAI } = require('openai');
-  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  groq = new OpenAI({
+    apiKey: process.env.GROQ_API_KEY,
+    baseURL: 'https://api.groq.com/openai/v1'
+  });
+  console.log('✅ Groq API configurada');
+} else {
+  console.log('⚠️ GROQ_API_KEY não configurada - modo demo ativo');
 }
+
+// Modelos Groq
+const GROQ_CHAT_MODEL = process.env.GROQ_CHAT_MODEL || 'llama-3.3-70b-versatile';
+const GROQ_WHISPER_MODEL = process.env.GROQ_WHISPER_MODEL || 'whisper-large-v3';
 
 // ===== PASSPORT GOOGLE =====
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'seu-client-id') {
@@ -152,9 +162,9 @@ app.post('/api/chat', async (req, res) => {
     } catch {}
   }
 
-  if (!openai) {
+  if (!groq) {
     return res.json({
-      reply: 'Olá! Sou a Kryno IA 🔥\n\nEstou quase pronta! Para funcionar 100%, preciso que você configure a OPENAI_API_KEY nas variáveis de ambiente na Railway.\n\nMas já posso te ajudar com várias coisas! Me diz o que você precisa. 🤖'
+      reply: 'Olá! Sou a Kryno IA 🔥\n\nEstou quase pronta! Para funcionar 100%, preciso que você configure a GROQ_API_KEY nas variáveis de ambiente na Railway.\n\nMas já posso te ajudar com várias coisas! Me diz o que você precisa. 🤖'
     });
   }
 
@@ -171,21 +181,18 @@ app.post('/api/chat', async (req, res) => {
       history.forEach(h => messages.push({ role: h.role, content: h.content }));
     }
 
-    // Verificar se tem imagem
+    // Se tem imagem, avisa que visão não é suportada pelo Groq
     if (image) {
       messages.push({
         role: 'user',
-        content: [
-          { type: 'text', text: message || 'Analise esta imagem.' },
-          { type: 'image_url', image_url: { url: image } }
-        ]
+        content: `${message || ''}\n\n[Nota: O usuário enviou uma imagem, mas a API Groq não suporta análise de imagens no momento. Peça ao usuário para descrever a imagem.]`
       });
     } else {
       messages.push({ role: 'user', content: message });
     }
 
-    const response = await openai.chat.completions.create({
-      model: image ? 'gpt-4o' : 'gpt-4o-mini',
+    const response = await groq.chat.completions.create({
+      model: GROQ_CHAT_MODEL,
       messages: messages,
       max_tokens: 2000,
       temperature: 0.8
@@ -204,13 +211,9 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-// ===== COMANDO "IMAGINA" - Geração de Imagem =====
+// ===== COMANDO "IMAGINA" - Geração de Imagem (Pollinations.ai - GRATUITO) =====
 app.post('/api/imagina', async (req, res) => {
   const { prompt } = req.body;
-
-  if (!openai) {
-    return res.json({ error: 'OPENAI_API_KEY não configurada' });
-  }
 
   try {
     // Detectar se o prompt começa com "imagina"
@@ -219,34 +222,31 @@ app.post('/api/imagina', async (req, res) => {
       cleanPrompt = cleanPrompt.substring(8);
     }
 
-    const response = await openai.images.generate({
-      model: 'dall-e-3',
-      prompt: `Crie uma imagem: ${cleanPrompt}. Estilo detalhado e vibrante.`,
-      n: 1,
-      size: '1024x1024',
-      quality: 'standard'
-    });
+    // Usar Pollinations.ai (gratuito, sem chave de API)
+    const encodedPrompt = encodeURIComponent(cleanPrompt);
+    const seed = Math.floor(Math.random() * 1000000);
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&seed=${seed}&nologo=true&model=flux`;
 
-    res.json({ image_url: response.data[0].url, prompt: cleanPrompt });
+    res.json({ image_url: imageUrl, prompt: cleanPrompt });
   } catch (err) {
     console.error('Erro ao gerar imagem:', err.message);
     res.json({ error: 'Não consegui gerar a imagem 😢 Tenta descrever de outro jeito!' });
   }
 });
 
-// ===== TRANSCRIÇÃO DE ÁUDIO =====
+// ===== TRANSCRIÇÃO DE ÁUDIO (Groq Whisper) =====
 app.post('/api/transcrever', upload.single('audio'), async (req, res) => {
-  if (!openai || !req.file) {
-    return res.json({ error: 'Áudio não recebido ou API não configurada' });
+  if (!groq || !req.file) {
+    return res.json({ error: 'Áudio não recebido ou GROQ_API_KEY não configurada' });
   }
 
   try {
     const tempPath = path.join(__dirname, 'temp_audio_' + Date.now() + '.mp3');
     fs.writeFileSync(tempPath, req.file.buffer);
 
-    const response = await openai.audio.transcriptions.create({
+    const response = await groq.audio.transcriptions.create({
       file: fs.createReadStream(tempPath),
-      model: 'whisper-1',
+      model: GROQ_WHISPER_MODEL,
       language: 'pt'
     });
 
@@ -254,6 +254,8 @@ app.post('/api/transcrever', upload.single('audio'), async (req, res) => {
     res.json({ text: response.text });
   } catch (err) {
     console.error('Erro ao transcrever:', err.message);
+    // Limpar arquivo temporário
+    try { fs.unlinkSync(tempPath); } catch {}
     res.json({ error: 'Não consegui transcrever o áudio 😢' });
   }
 });
@@ -380,4 +382,6 @@ app.get('*', (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🔥 Kryno IA rodando na porta ${PORT}`);
   console.log(`👉 http://localhost:${PORT}`);
+  console.log(`🤖 Groq: ${groq ? 'ativo' : 'não configurado'}`);
+  console.log(`🎨 Imagens: Pollinations.ai (gratuito)`);
 });
