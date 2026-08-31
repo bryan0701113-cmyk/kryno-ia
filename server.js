@@ -9,7 +9,7 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
 
-const { initDB, db } = require('./db');
+const { initDB, pool } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,9 +18,6 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_PASS = process.env.ADMIN_PASS || 'Kryno2026';
 const ADMIN_PIN = process.env.ADMIN_PIN || '1212';
 const JWT_SECRET = process.env.JWT_SECRET || 'kryno-secret';
-
-// Inicializar banco
-initDB();
 
 // ===== MIDDLEWARES =====
 app.use(express.json({ limit: '50mb' }));
@@ -36,13 +33,12 @@ app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Upload de arquivos
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 } // 25MB
+  limits: { fileSize: 25 * 1024 * 1024 }
 });
 
-// ===== GROQ API (compatível com SDK OpenAI) =====
+// ===== GROQ API =====
 let groq = null;
 if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'sua-chave-groq-aqui') {
   const { OpenAI } = require('openai');
@@ -51,13 +47,19 @@ if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'sua-chave-groq-aqu
     baseURL: 'https://api.groq.com/openai/v1'
   });
   console.log('✅ Groq API configurada');
-} else {
-  console.log('⚠️ GROQ_API_KEY não configurada - modo demo ativo');
 }
 
-// Modelos Groq
 const GROQ_CHAT_MODEL = process.env.GROQ_CHAT_MODEL || 'llama-3.3-70b-versatile';
 const GROQ_WHISPER_MODEL = process.env.GROQ_WHISPER_MODEL || 'whisper-large-v3';
+
+// ===== DB READY =====
+let dbReady = false;
+async function ensureDB() {
+  if (!dbReady) {
+    await initDB();
+    dbReady = true;
+  }
+}
 
 // ===== PASSPORT GOOGLE =====
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'seu-client-id') {
@@ -65,31 +67,36 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'seu-client
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackURL: process.env.GOOGLE_CALLBACK_URL || '/auth/google/callback'
-  }, (accessToken, refreshToken, profile, done) => {
-    const email = profile.emails[0].value;
-    const name = profile.displayName;
-    const picture = profile.photos?.[0]?.value || '';
+  }, async (accessToken, refreshToken, profile, done) => {
+    try {
+      await ensureDB();
+      const email = profile.emails[0].value;
+      const name = profile.displayName;
+      const picture = profile.photos?.[0]?.value || '';
 
-    // Verificar banimento
-    const banned = db.prepare('SELECT * FROM banned_users WHERE email = ?').get(email);
-    if (banned) return done(null, false, { message: 'Usuário banido' });
+      const banned = await pool.query('SELECT * FROM banned_users WHERE email = $1', [email]);
+      if (banned.rows.length > 0) return done(null, false, { message: 'Usuário banido' });
 
-    // Criar ou atualizar usuário
-    db.prepare(`INSERT OR IGNORE INTO users (email, name, picture, google_id) VALUES (?, ?, ?, ?)`)
-      .run(email, name, picture, profile.id);
-    db.prepare(`UPDATE users SET name = ?, picture = ?, google_id = ? WHERE email = ?`)
-      .run(name, picture, profile.id, email);
+      await pool.query(
+        `INSERT INTO users (email, name, picture, google_id) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (email) DO UPDATE SET name = $2, picture = $3, google_id = $4`,
+        [email, name, picture, profile.id]
+      );
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-    const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-    return done(null, { user, token });
+      const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+      const user = userResult.rows[0];
+      const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+      return done(null, { user, token });
+    } catch (err) {
+      return done(err);
+    }
   }));
 }
 
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((user, done) => done(null, user));
 
-// ===== MIDDLEWARE DE AUTENTICAÇÃO =====
+// ===== MIDDLEWARES DE AUTENTICAÇÃO =====
 function authMiddleware(req, res, next) {
   const token = req.cookies.token || req.headers.authorization?.replace('Bearer ');
   if (!token) return res.status(401).json({ error: 'Não autenticado' });
@@ -115,8 +122,6 @@ function adminMiddleware(req, res, next) {
 }
 
 // ===== ROTAS DE AUTENTICAÇÃO =====
-
-// Login com Google
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 app.get('/auth/google/callback',
   passport.authenticate('google', { failureRedirect: '/?error=login_failed' }),
@@ -125,15 +130,11 @@ app.get('/auth/google/callback',
     res.redirect('/');
   }
 );
-
-// Logout
 app.post('/auth/logout', (req, res) => {
   res.clearCookie('token');
   req.logout(() => {});
   res.json({ success: true });
 });
-
-// Status do usuário
 app.get('/auth/me', (req, res) => {
   const token = req.cookies.token;
   if (!token) return res.json({ authenticated: false });
@@ -145,11 +146,9 @@ app.get('/auth/me', (req, res) => {
   }
 });
 
-// ===== SISTEMA DE COMANDOS DA KRYNO =====
-
-// Chat principal - processa qualquer comando da lista
+// ===== CHAT =====
 app.post('/api/chat', async (req, res) => {
-  const { message, image, audio, history } = req.body;
+  const { message, image, history } = req.body;
   const token = req.cookies.token;
   let userId = 'anonimo';
   let userEmail = 'anonimo';
@@ -157,14 +156,14 @@ app.post('/api/chat', async (req, res) => {
   if (token) {
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
-      userId = decoded.id;
+      userId = String(decoded.id);
       userEmail = decoded.email;
     } catch {}
   }
 
   if (!groq) {
     return res.json({
-      reply: 'Olá! Sou a Kryno IA 🔥\n\nEstou quase pronta! Para funcionar 100%, preciso que você configure a GROQ_API_KEY nas variáveis de ambiente na Railway.\n\nMas já posso te ajudar com várias coisas! Me diz o que você precisa. 🤖'
+      reply: 'Olá! Sou a Kryno IA 🔥\n\nEstou quase pronta! Para funcionar 100%, preciso que você configure a GROQ_API_KEY nas variáveis de ambiente na Vercel.\n\nMas já posso te ajudar com várias coisas! Me diz o que você precisa. 🤖'
     });
   }
 
@@ -176,12 +175,10 @@ app.post('/api/chat', async (req, res) => {
       }
     ];
 
-    // Adicionar histórico da conversa
     if (history && history.length > 0) {
       history.forEach(h => messages.push({ role: h.role, content: h.content }));
     }
 
-    // Se tem imagem, avisa que visão não é suportada pelo Groq
     if (image) {
       messages.push({
         role: 'user',
@@ -200,9 +197,16 @@ app.post('/api/chat', async (req, res) => {
 
     const reply = response.choices[0].message.content;
 
-    // Salvar no histórico
-    db.prepare(`INSERT INTO messages (user_id, user_email, user_message, bot_reply, timestamp) VALUES (?, ?, ?, ?, ?)`)
-      .run(userId, userEmail, message || '[imagem]', reply, new Date().toISOString());
+    // Salvar no histórico (se DB disponível)
+    try {
+      await ensureDB();
+      await pool.query(
+        `INSERT INTO messages (user_id, user_email, user_message, bot_reply, timestamp) VALUES ($1, $2, $3, $4, NOW())`,
+        [userId, userEmail, message || '[imagem]', reply]
+      );
+    } catch (dbErr) {
+      console.log('⚠️ DB não disponível, histórico não salvo');
+    }
 
     res.json({ reply });
   } catch (err) {
@@ -211,26 +215,22 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-// ===== COMANDO "IMAGINA" - Geração de Imagem (Pollinations.ai - GRATUITO) =====
+// ===== IMAGINA (Pollinations.ai - Gratuito) =====
 app.post('/api/imagina', async (req, res) => {
   const { prompt } = req.body;
-
   try {
-    // Detectar se o prompt começa com "imagina"
     let cleanPrompt = prompt;
     if (cleanPrompt.toLowerCase().startsWith('imagina ')) {
       cleanPrompt = cleanPrompt.substring(8);
     }
 
-    // Usar Pollinations.ai (gratuito, sem chave de API)
     const encodedPrompt = encodeURIComponent(cleanPrompt);
     const seed = Math.floor(Math.random() * 1000000);
     const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&seed=${seed}&nologo=true&model=flux`;
 
     res.json({ image_url: imageUrl, prompt: cleanPrompt });
   } catch (err) {
-    console.error('Erro ao gerar imagem:', err.message);
-    res.json({ error: 'Não consegui gerar a imagem 😢 Tenta descrever de outro jeito!' });
+    res.json({ error: 'Não consegui gerar a imagem 😢' });
   }
 });
 
@@ -240,8 +240,9 @@ app.post('/api/transcrever', upload.single('audio'), async (req, res) => {
     return res.json({ error: 'Áudio não recebido ou GROQ_API_KEY não configurada' });
   }
 
+  let tempPath = null;
   try {
-    const tempPath = path.join(__dirname, 'temp_audio_' + Date.now() + '.mp3');
+    tempPath = path.join('/tmp', 'audio_' + Date.now() + '.mp3');
     fs.writeFileSync(tempPath, req.file.buffer);
 
     const response = await groq.audio.transcriptions.create({
@@ -254,55 +255,83 @@ app.post('/api/transcrever', upload.single('audio'), async (req, res) => {
     res.json({ text: response.text });
   } catch (err) {
     console.error('Erro ao transcrever:', err.message);
-    // Limpar arquivo temporário
-    try { fs.unlinkSync(tempPath); } catch {}
+    if (tempPath) try { fs.unlinkSync(tempPath); } catch {}
     res.json({ error: 'Não consegui transcrever o áudio 😢' });
   }
 });
 
 // ===== HISTÓRICO =====
-app.get('/api/historico', authMiddleware, (req, res) => {
-  const messages = db.prepare(`SELECT * FROM messages WHERE user_id = ? ORDER BY timestamp DESC LIMIT 50`)
-    .all(req.user.id);
-  res.json({ messages });
+app.get('/api/historico', authMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 50', [req.user.id]);
+    res.json({ messages: result.rows });
+  } catch {
+    res.json({ messages: [] });
+  }
 });
 
-app.get('/api/historico/buscar', authMiddleware, (req, res) => {
+app.get('/api/historico/buscar', authMiddleware, async (req, res) => {
   const { q } = req.query;
-  const messages = db.prepare(`SELECT * FROM messages WHERE user_id = ? AND (user_message LIKE ? OR bot_reply LIKE ?) ORDER BY timestamp DESC`)
-    .all(req.user.id, `%${q}%`, `%${q}%`);
-  res.json({ messages });
+  try {
+    await ensureDB();
+    const result = await pool.query(
+      'SELECT * FROM messages WHERE user_id = $1 AND (user_message ILIKE $2 OR bot_reply ILIKE $2) ORDER BY timestamp DESC',
+      [req.user.id, `%${q}%`]
+    );
+    res.json({ messages: result.rows });
+  } catch {
+    res.json({ messages: [] });
+  }
 });
 
-app.delete('/api/historico', authMiddleware, (req, res) => {
-  db.prepare('DELETE FROM messages WHERE user_id = ?').run(req.user.id);
-  res.json({ success: true });
+app.delete('/api/historico', authMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    await pool.query('DELETE FROM messages WHERE user_id = $1', [req.user.id]);
+    res.json({ success: true });
+  } catch {
+    res.json({ success: false });
+  }
 });
 
-app.delete('/api/historico/:id', authMiddleware, (req, res) => {
-  db.prepare('DELETE FROM messages WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
-  res.json({ success: true });
+app.delete('/api/historico/:id', authMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    await pool.query('DELETE FROM messages WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    res.json({ success: true });
+  } catch {
+    res.json({ success: false });
+  }
 });
 
-app.get('/api/historico/exportar', authMiddleware, (req, res) => {
-  const messages = db.prepare(`SELECT * FROM messages WHERE user_id = ? ORDER BY timestamp ASC`).all(req.user.id);
-  let txt = '=== HISTÓRICO KRYNO IA ===\n\n';
-  messages.forEach(m => {
-    txt += `[${m.timestamp}]\nVocê: ${m.user_message}\nKryno: ${m.bot_reply}\n\n---\n\n`;
-  });
-  res.setHeader('Content-Type', 'text/plain');
-  res.setHeader('Content-Disposition', 'attachment; filename="historico-kryno.txt"');
-  res.send(txt);
+app.get('/api/historico/exportar', authMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp ASC', [req.user.id]);
+    let txt = '=== HISTÓRICO KRYNO IA ===\n\n';
+    result.rows.forEach(m => {
+      txt += `[${m.timestamp}]\nVocê: ${m.user_message}\nKryno: ${m.bot_reply}\n\n---\n\n`;
+    });
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Disposition', 'attachment; filename="historico-kryno.txt"');
+    res.send(txt);
+  } catch {
+    res.send('Erro ao exportar histórico');
+  }
 });
 
-app.get('/api/historico/ultimas', authMiddleware, (req, res) => {
-  const messages = db.prepare(`SELECT * FROM messages WHERE user_id = ? ORDER BY timestamp DESC LIMIT 10`).all(req.user.id);
-  res.json({ messages, count: messages.length });
+app.get('/api/historico/ultimas', authMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10', [req.user.id]);
+    res.json({ messages: result.rows, count: result.rows.length });
+  } catch {
+    res.json({ messages: [], count: 0 });
+  }
 });
 
 // ===== PAINEL ADMIN =====
-
-// Login admin
 app.post('/api/admin/login', (req, res) => {
   const { pass, pin } = req.body;
   if ((pass === ADMIN_PASS) || (pin === ADMIN_PIN)) {
@@ -314,63 +343,73 @@ app.post('/api/admin/login', (req, res) => {
   }
 });
 
-// Ver todos os usuários
-app.get('/api/admin/users', adminMiddleware, (req, res) => {
-  const users = db.prepare('SELECT id, email, name, picture, role, created_at, banned FROM users ORDER BY created_at DESC').all();
-  res.json({ users });
+app.get('/api/admin/users', adminMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const result = await pool.query('SELECT id, email, name, picture, role, created_at, banned FROM users ORDER BY created_at DESC');
+    res.json({ users: result.rows });
+  } catch {
+    res.json({ users: [] });
+  }
 });
 
-// Ver histórico de qualquer usuário
-app.get('/api/admin/users/:id/historico', adminMiddleware, (req, res) => {
-  const messages = db.prepare('SELECT * FROM messages WHERE user_id = ? ORDER BY timestamp DESC LIMIT 100').all(req.params.id);
-  res.json({ messages });
+app.get('/api/admin/users/:id/historico', adminMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 100', [req.params.id]);
+    res.json({ messages: result.rows });
+  } catch {
+    res.json({ messages: [] });
+  }
 });
 
-// Estatísticas
-app.get('/api/admin/stats', adminMiddleware, (req, res) => {
-  const totalUsers = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
-  const totalMessages = db.prepare('SELECT COUNT(*) as count FROM messages').get().count;
-  const bannedUsers = db.prepare('SELECT COUNT(*) as count FROM banned_users').get().count;
-  const todayMessages = db.prepare(`SELECT COUNT(*) as count FROM messages WHERE date(timestamp) = date('now')`).get().count;
+app.get('/api/admin/stats', adminMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const totalUsers = parseInt((await pool.query('SELECT COUNT(*) as count FROM users')).rows[0].count);
+    const totalMessages = parseInt((await pool.query('SELECT COUNT(*) as count FROM messages')).rows[0].count);
+    const bannedUsers = parseInt((await pool.query('SELECT COUNT(*) as count FROM banned_users')).rows[0].count);
+    const todayMessages = parseInt((await pool.query("SELECT COUNT(*) as count FROM messages WHERE timestamp::date = NOW()::date")).rows[0].count);
+    const messagesPerDay = (await pool.query("SELECT timestamp::date as date, COUNT(*) as count FROM messages WHERE timestamp >= NOW() - INTERVAL '7 days' GROUP BY timestamp::date ORDER BY date DESC")).rows;
 
-  // Mensagens por dia (últimos 7 dias)
-  const messagesPerDay = db.prepare(`
-    SELECT date(timestamp) as date, COUNT(*) as count
-    FROM messages
-    WHERE timestamp >= datetime('now', '-7 days')
-    GROUP BY date(timestamp)
-    ORDER BY date DESC
-  `).all();
-
-  res.json({
-    totalUsers,
-    totalMessages,
-    bannedUsers,
-    todayMessages,
-    messagesPerDay
-  });
+    res.json({ totalUsers, totalMessages, bannedUsers, todayMessages, messagesPerDay });
+  } catch {
+    res.json({ totalUsers: 0, totalMessages: 0, bannedUsers: 0, todayMessages: 0, messagesPerDay: [] });
+  }
 });
 
-// Banir usuário
-app.post('/api/admin/ban', adminMiddleware, (req, res) => {
-  const { email } = req.body;
-  db.prepare('INSERT OR IGNORE INTO banned_users (email, banned_at) VALUES (?, ?)').run(email, new Date().toISOString());
-  db.prepare('UPDATE users SET banned = 1 WHERE email = ?').run(email);
-  res.json({ success: true });
+app.post('/api/admin/ban', adminMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const { email } = req.body;
+    await pool.query('INSERT INTO banned_users (email, banned_at) VALUES ($1, NOW()) ON CONFLICT (email) DO NOTHING', [email]);
+    await pool.query('UPDATE users SET banned = 1 WHERE email = $1', [email]);
+    res.json({ success: true });
+  } catch {
+    res.json({ success: false });
+  }
 });
 
-// Desbanir usuário
-app.post('/api/admin/unban', adminMiddleware, (req, res) => {
-  const { email } = req.body;
-  db.prepare('DELETE FROM banned_users WHERE email = ?').run(email);
-  db.prepare('UPDATE users SET banned = 0 WHERE email = ?').run(email);
-  res.json({ success: true });
+app.post('/api/admin/unban', adminMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const { email } = req.body;
+    await pool.query('DELETE FROM banned_users WHERE email = $1', [email]);
+    await pool.query('UPDATE users SET banned = 0 WHERE email = $1', [email]);
+    res.json({ success: true });
+  } catch {
+    res.json({ success: false });
+  }
 });
 
-// Apagar histórico de usuário
-app.delete('/api/admin/users/:id/historico', adminMiddleware, (req, res) => {
-  db.prepare('DELETE FROM messages WHERE user_id = ?').run(req.params.id);
-  res.json({ success: true });
+app.delete('/api/admin/users/:id/historico', adminMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    await pool.query('DELETE FROM messages WHERE user_id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch {
+    res.json({ success: false });
+  }
 });
 
 // ===== ROTA PRINCIPAL =====
@@ -378,10 +417,15 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ===== INICIAR =====
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🔥 Kryno IA rodando na porta ${PORT}`);
-  console.log(`👉 http://localhost:${PORT}`);
-  console.log(`🤖 Groq: ${groq ? 'ativo' : 'não configurado'}`);
-  console.log(`🎨 Imagens: Pollinations.ai (gratuito)`);
-});
+// ===== INICIAR (só em local, Vercel usa serverless) =====
+if (process.env.VERCEL) {
+  module.exports = app;
+} else {
+  app.listen(PORT, '0.0.0.0', async () => {
+    console.log(`🔥 Kryno IA rodando na porta ${PORT}`);
+    console.log(`👉 http://localhost:${PORT}`);
+    console.log(`🤖 Groq: ${groq ? 'ativo' : 'não configurado'}`);
+    console.log(`🎨 Imagens: Pollinations.ai (gratuito)`);
+    console.log(`💾 Banco: ${process.env.DATABASE_URL ? 'Postgres conectado' : 'sem DATABASE_URL (histórico não persiste)'}`);
+  });
+}

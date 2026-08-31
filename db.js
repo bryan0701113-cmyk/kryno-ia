@@ -1,53 +1,58 @@
-const Database = require('better-sqlite3');
-const path = require('path');
-const fs = require('fs');
+const { Pool } = require('pg');
 
-const dbPath = path.join(__dirname, 'kryno.db');
-const db = new Database(dbPath);
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+});
 
-db.pragma('journal_mode = WAL');
+let initialized = false;
 
-function initDB() {
-  // Tabela de usuários
-  db.prepare(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      name TEXT,
-      picture TEXT,
-      google_id TEXT,
-      role TEXT DEFAULT 'user',
-      banned INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now'))
-    )
-  `).run();
+async function initDB() {
+  if (initialized) return;
+  initialized = true;
 
-  // Tabela de mensagens (histórico)
-  db.prepare(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id TEXT,
-      user_email TEXT,
-      user_message TEXT,
-      bot_reply TEXT,
-      timestamp TEXT
-    )
-  `).run();
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        name TEXT,
+        picture TEXT,
+        google_id TEXT,
+        role TEXT DEFAULT 'user',
+        banned INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
 
-  // Tabela de usuários banidos
-  db.prepare(`
-    CREATE TABLE IF NOT EXISTS banned_users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      banned_at TEXT
-    )
-  `).run();
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT,
+        user_email TEXT,
+        user_message TEXT,
+        bot_reply TEXT,
+        timestamp TIMESTAMP DEFAULT NOW()
+      )
+    `);
 
-  // Índices
-  db.prepare('CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id)').run();
-  db.prepare('CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)').run();
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS banned_users (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        banned_at TIMESTAMP
+      )
+    `);
 
-  console.log('✅ Banco de dados Kryno inicializado');
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)`);
+
+    console.log('✅ Banco de dados Kryno (Postgres) inicializado');
+  } catch (err) {
+    console.error('❌ Erro ao inicializar banco:', err.message);
+    initialized = false;
+    throw err;
+  }
 }
 
-module.exports = { initDB, db };
+module.exports = { initDB, pool };
