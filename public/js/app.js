@@ -51,11 +51,16 @@ async function checkAuth() {
 function showChatScreen(user = null) {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('chat-screen').classList.remove('hidden');
+  const avatar = document.getElementById('user-avatar');
+  const info = document.getElementById('user-info');
   if (user) {
-    const info = document.getElementById('user-info');
-    info.innerHTML = `👤 ${user.name || 'Convidado'}<br>📧 ${user.email || 'convidado'}`;
+    const name = user.name || 'Convidado';
+    avatar.textContent = name.trim().charAt(0).toUpperCase() || '?';
+    info.innerHTML = `<div class="u-name">${name}</div><div class="u-email">${user.email || ''}</div>`;
+    renderSidebarHistorico();
   } else {
-    document.getElementById('user-info').textContent = '👤 Convidado';
+    avatar.textContent = '?';
+    info.innerHTML = `<div class="u-name">Convidado</div>`;
   }
 }
 
@@ -74,10 +79,63 @@ function switchTab(tab) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
   document.getElementById(`panel-${tab}`).classList.add('active');
-  document.getElementById(`tab-${tab}`).classList.add('active');
+  const tabBtn = document.getElementById(`tab-${tab}`);
+  if (tabBtn) tabBtn.classList.add('active');
 
   if (tab === 'historico') carregarHistorico();
   if (tab === 'admin') {}
+
+  closeSidebarOnMobile();
+}
+
+// ===== SIDEBAR (mobile toggle + nova sessão + histórico) =====
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('show');
+}
+
+function closeSidebarOnMobile() {
+  if (window.innerWidth <= 768) {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('show');
+  }
+}
+
+function novaSessao() {
+  chatHistory = [];
+  uploadedImage = null;
+  const container = document.getElementById('chat-messages');
+  container.innerHTML = `
+    <div class="welcome-msg">
+      <div class="welcome-logo">⚡</div>
+      <h2>Kryno IA</h2>
+      <p>Nova sessão iniciada! Sobre o que vamos conversar agora?</p>
+      <p class="hint">Experimente: "cria uma cantada engraçada", "me dá um conselho amoroso", "resumo do livro Dom Casmurro"...</p>
+    </div>`;
+  switchTab('chat');
+}
+
+async function renderSidebarHistorico() {
+  const list = document.getElementById('sidebar-hist-list');
+  try {
+    const res = await fetch('/api/historico');
+    if (res.status === 401) {
+      list.innerHTML = '<div class="sidebar-hist-empty">Faça login para ver seu histórico.</div>';
+      return;
+    }
+    const data = await res.json();
+    if (!data.messages || data.messages.length === 0) {
+      list.innerHTML = '<div class="sidebar-hist-empty">Nenhuma conversa ainda.</div>';
+      return;
+    }
+    list.innerHTML = data.messages.slice(0, 8).map(m => `
+      <div class="sidebar-hist-item" onclick="switchTab('historico')" title="${escapeHtml(m.user_message)}">
+        ${escapeHtml(m.user_message).slice(0, 40)}
+      </div>
+    `).join('');
+  } catch {
+    list.innerHTML = '<div class="sidebar-hist-empty">Erro ao carregar.</div>';
+  }
 }
 
 // ===== CHAT =====
@@ -104,8 +162,7 @@ async function sendMessage() {
   if (welcome) welcome.remove();
 
   // Indicador de digitação
-  const typingEl = addMessage('bot', 'Kryno está digitando...');
-  typingEl.classList.add('typing');
+  const typingEl = addTypingIndicator();
 
   try {
     const res = await fetch('/api/chat', {
@@ -125,6 +182,7 @@ async function sendMessage() {
     // Salvar no histórico local
     chatHistory.push({ role: 'user', content: message });
     chatHistory.push({ role: 'assistant', content: data.reply });
+    renderSidebarHistorico();
   } catch (err) {
     typingEl.remove();
     addMessage('bot', 'Ops! Deu um erro 😅 Tenta de novo!');
@@ -138,12 +196,46 @@ async function sendMessage() {
 
 function addMessage(sender, text) {
   const container = document.getElementById('chat-messages');
-  const div = document.createElement('div');
-  div.className = `msg ${sender}`;
-  div.textContent = text;
-  container.appendChild(div);
+  const row = document.createElement('div');
+  row.className = `msg-row ${sender}`;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = sender === 'user' ? '🙂' : '⚡';
+
+  const col = document.createElement('div');
+  col.className = 'msg-col';
+
+  const label = document.createElement('div');
+  label.className = 'msg-label';
+  label.textContent = sender === 'user' ? 'Você' : 'Kryno IA';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg';
+  bubble.textContent = text;
+
+  col.appendChild(label);
+  col.appendChild(bubble);
+  row.appendChild(avatar);
+  row.appendChild(col);
+  container.appendChild(row);
   container.scrollTop = container.scrollHeight;
-  return div;
+  return bubble;
+}
+
+function addTypingIndicator() {
+  const container = document.getElementById('chat-messages');
+  const row = document.createElement('div');
+  row.className = 'msg-row bot';
+  row.innerHTML = `
+    <div class="avatar">⚡</div>
+    <div class="msg-col">
+      <div class="msg-label">Kryno pensando</div>
+      <div class="msg typing-indicator"><span></span><span></span><span></span></div>
+    </div>`;
+  container.appendChild(row);
+  container.scrollTop = container.scrollHeight;
+  return row;
 }
 
 // ===== UPLOAD DE IMAGEM =====
@@ -166,8 +258,7 @@ async function handleAudioUpload(event) {
   if (!file) return;
 
   addMessage('user', '🎤 [Áudio enviado]');
-  const typingEl = addMessage('bot', 'Transcrevendo áudio...');
-  typingEl.classList.add('typing');
+  const typingEl = addTypingIndicator();
 
   const formData = new FormData();
   formData.append('audio', file);
