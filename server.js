@@ -85,7 +85,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'seu-client
 
       const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
       const user = userResult.rows[0];
-      const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+      const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, plan: user.plan || 'free' }, JWT_SECRET, { expiresIn: '7d' });
       return done(null, { user, token });
     } catch (err) {
       return done(err);
@@ -146,6 +146,16 @@ app.get('/auth/me', (req, res) => {
   }
 });
 
+// ===== OBTER SETTINGS DA IA =====
+async function getAISettings() {
+  try {
+    await ensureDB();
+    const result = await pool.query('SELECT * FROM ai_settings WHERE id = 1');
+    if (result.rows.length > 0) return result.rows[0];
+  } catch {}
+  return { temperature: 0.8, allow_swearing: 1, blocked_topics: '', system_prompt: '' };
+}
+
 // ===== CHAT =====
 app.post('/api/chat', async (req, res) => {
   const { message, image, history } = req.body;
@@ -168,12 +178,20 @@ app.post('/api/chat', async (req, res) => {
   }
 
   try {
-    const messages = [
-      {
-        role: 'system',
-        content: `Você é a Kryno IA, uma inteligência artificial brasileira criada para ajudar em TUDO. Você é amigável, divertida, usa emojis e fala em português do Brasil. Sempre dê respostas completas e úteis. Você tem conhecimento em: conselhos amorosos, estudos, trabalho, receitas, treinos, dicas, e muito mais. Seja sempre positiva e encorajadora.`
-      }
-    ];
+    const settings = await getAISettings();
+
+    // Construir system prompt dinâmico
+    let systemContent = settings.system_prompt || `Você é a Kryno IA, uma inteligência artificial brasileira criada para ajudar em TUDO. Você é amigável, divertida, usa emojis e fala em português do Brasil. Sempre dê respostas completas e úteis. Você tem conhecimento em: conselhos amorosos, estudos, trabalho, receitas, treinos, dicas, e muito mais. Seja sempre positiva e encorajadora.`;
+
+    if (settings.allow_swearing == 0) {
+      systemContent += '\n\nIMPORTANTE: NÃO use palavrões, termos ofensivos ou linguagem imprópria. Mantenha um vocabulário limpo e respeitoso em todas as respostas.';
+    }
+
+    if (settings.blocked_topics && settings.blocked_topics.trim()) {
+      systemContent += `\n\nIMPORTANTE: Os seguintes assuntos são PROIBIDOS. Se o usuário perguntar sobre qualquer um deles, recuse educadamente: ${settings.blocked_topics}`;
+    }
+
+    const messages = [{ role: 'system', content: systemContent }];
 
     if (history && history.length > 0) {
       history.forEach(h => messages.push({ role: h.role, content: h.content }));
@@ -192,12 +210,11 @@ app.post('/api/chat', async (req, res) => {
       model: GROQ_CHAT_MODEL,
       messages: messages,
       max_tokens: 2000,
-      temperature: 0.8
+      temperature: settings.temperature || 0.8
     });
 
     const reply = response.choices[0].message.content;
 
-    // Salvar no histórico (se DB disponível)
     try {
       await ensureDB();
       await pool.query(
@@ -332,6 +349,8 @@ app.get('/api/historico/ultimas', authMiddleware, async (req, res) => {
 });
 
 // ===== PAINEL ADMIN =====
+
+// Login admin
 app.post('/api/admin/login', (req, res) => {
   const { pass, pin } = req.body;
   if ((pass === ADMIN_PASS) || (pin === ADMIN_PIN)) {
@@ -343,16 +362,41 @@ app.post('/api/admin/login', (req, res) => {
   }
 });
 
+// Verificar status do admin
+app.get('/api/admin/check', adminMiddleware, (req, res) => {
+  res.json({ admin: true });
+});
+
+// Stats
+app.get('/api/admin/stats', adminMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const totalUsers = parseInt((await pool.query('SELECT COUNT(*) as count FROM users')).rows[0].count);
+    const totalMessages = parseInt((await pool.query('SELECT COUNT(*) as count FROM messages')).rows[0].count);
+    const bannedUsers = parseInt((await pool.query('SELECT COUNT(*) as count FROM banned_users')).rows[0].count);
+    const todayMessages = parseInt((await pool.query("SELECT COUNT(*) as count FROM messages WHERE timestamp::date = NOW()::date")).rows[0].count);
+    const proUsers = parseInt((await pool.query("SELECT COUNT(*) as count FROM users WHERE plan = 'pro'")).rows[0].count);
+    const premiumUsers = parseInt((await pool.query("SELECT COUNT(*) as count FROM users WHERE plan = 'premium'")).rows[0].count);
+    const messagesPerDay = (await pool.query("SELECT timestamp::date as date, COUNT(*) as count FROM messages WHERE timestamp >= NOW() - INTERVAL '7 days' GROUP BY timestamp::date ORDER BY date DESC")).rows;
+
+    res.json({ totalUsers, totalMessages, bannedUsers, todayMessages, proUsers, premiumUsers, messagesPerDay });
+  } catch {
+    res.json({ totalUsers: 0, totalMessages: 0, bannedUsers: 0, todayMessages: 0, proUsers: 0, premiumUsers: 0, messagesPerDay: [] });
+  }
+});
+
+// Listar usuários
 app.get('/api/admin/users', adminMiddleware, async (req, res) => {
   try {
     await ensureDB();
-    const result = await pool.query('SELECT id, email, name, picture, role, created_at, banned FROM users ORDER BY created_at DESC');
+    const result = await pool.query('SELECT id, email, name, picture, role, plan, created_at, banned FROM users ORDER BY created_at DESC');
     res.json({ users: result.rows });
   } catch {
     res.json({ users: [] });
   }
 });
 
+// Histórico de um usuário
 app.get('/api/admin/users/:id/historico', adminMiddleware, async (req, res) => {
   try {
     await ensureDB();
@@ -363,21 +407,7 @@ app.get('/api/admin/users/:id/historico', adminMiddleware, async (req, res) => {
   }
 });
 
-app.get('/api/admin/stats', adminMiddleware, async (req, res) => {
-  try {
-    await ensureDB();
-    const totalUsers = parseInt((await pool.query('SELECT COUNT(*) as count FROM users')).rows[0].count);
-    const totalMessages = parseInt((await pool.query('SELECT COUNT(*) as count FROM messages')).rows[0].count);
-    const bannedUsers = parseInt((await pool.query('SELECT COUNT(*) as count FROM banned_users')).rows[0].count);
-    const todayMessages = parseInt((await pool.query("SELECT COUNT(*) as count FROM messages WHERE timestamp::date = NOW()::date")).rows[0].count);
-    const messagesPerDay = (await pool.query("SELECT timestamp::date as date, COUNT(*) as count FROM messages WHERE timestamp >= NOW() - INTERVAL '7 days' GROUP BY timestamp::date ORDER BY date DESC")).rows;
-
-    res.json({ totalUsers, totalMessages, bannedUsers, todayMessages, messagesPerDay });
-  } catch {
-    res.json({ totalUsers: 0, totalMessages: 0, bannedUsers: 0, todayMessages: 0, messagesPerDay: [] });
-  }
-});
-
+// Banir usuário
 app.post('/api/admin/ban', adminMiddleware, async (req, res) => {
   try {
     await ensureDB();
@@ -390,6 +420,7 @@ app.post('/api/admin/ban', adminMiddleware, async (req, res) => {
   }
 });
 
+// Desbanir usuário
 app.post('/api/admin/unban', adminMiddleware, async (req, res) => {
   try {
     await ensureDB();
@@ -402,6 +433,7 @@ app.post('/api/admin/unban', adminMiddleware, async (req, res) => {
   }
 });
 
+// Deletar histórico de um usuário
 app.delete('/api/admin/users/:id/historico', adminMiddleware, async (req, res) => {
   try {
     await ensureDB();
@@ -412,18 +444,115 @@ app.delete('/api/admin/users/:id/historico', adminMiddleware, async (req, res) =
   }
 });
 
-// ===== ROTA PRINCIPAL =====
+// ===== NOVOS ENDPOINTS: CONFIGURAÇÕES DA IA =====
+
+// Obter configurações
+app.get('/api/admin/settings', adminMiddleware, async (req, res) => {
+  try {
+    const settings = await getAISettings();
+    res.json(settings);
+  } catch {
+    res.json({ temperature: 0.8, allow_swearing: 1, blocked_topics: '', system_prompt: '' });
+  }
+});
+
+// Salvar configurações
+app.put('/api/admin/settings', adminMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const { temperature, allow_swearing, blocked_topics, system_prompt } = req.body;
+    await pool.query(
+      `UPDATE ai_settings SET
+        temperature = $1,
+        allow_swearing = $2,
+        blocked_topics = $3,
+        system_prompt = $4,
+        updated_at = NOW()
+      WHERE id = 1`,
+      [temperature, allow_swearing ? 1 : 0, blocked_topics || '', system_prompt || '']
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
+// ===== BROADCAST (AVISOS) =====
+app.get('/api/admin/broadcasts', adminMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const result = await pool.query('SELECT * FROM broadcasts ORDER BY created_at DESC LIMIT 20');
+    res.json({ broadcasts: result.rows });
+  } catch {
+    res.json({ broadcasts: [] });
+  }
+});
+
+app.post('/api/admin/broadcast', adminMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const { message } = req.body;
+    if (!message || !message.trim()) return res.json({ success: false, error: 'Mensagem vazia' });
+    await pool.query('INSERT INTO broadcasts (message) VALUES ($1)', [message]);
+    res.json({ success: true });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/admin/broadcast/:id', adminMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    await pool.query('DELETE FROM broadcasts WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch {
+    res.json({ success: false });
+  }
+});
+
+// Endpoint público para buscar broadcasts ativos (para mostrar no chat)
+app.get('/api/broadcasts', async (req, res) => {
+  try {
+    await ensureDB();
+    const result = await pool.query('SELECT * FROM broadcasts ORDER BY created_at DESC LIMIT 1');
+    res.json({ broadcasts: result.rows });
+  } catch {
+    res.json({ broadcasts: [] });
+  }
+});
+
+// ===== GERENCIAR PLANOS =====
+app.put('/api/admin/users/:id/plan', adminMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const { plan } = req.body;
+    if (!['free', 'pro', 'premium'].includes(plan)) return res.json({ success: false, error: 'Plano inválido' });
+    await pool.query('UPDATE users SET plan = $1 WHERE id = $2', [plan, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
+// ===== SERVIR PÁGINA ADMIN EM /admin =====
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// ===== ROTA PRINCIPAL (SPA) =====
 app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) return;
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ===== INICIAR (só em local, Vercel usa serverless) =====
+// ===== INICIAR =====
 if (process.env.VERCEL) {
   module.exports = app;
 } else {
   app.listen(PORT, '0.0.0.0', async () => {
     console.log(`🔥 Kryno IA rodando na porta ${PORT}`);
     console.log(`👉 http://localhost:${PORT}`);
+    console.log(`👉 http://localhost:${PORT}/admin (Painel Admin)`);
     console.log(`🤖 Groq: ${groq ? 'ativo' : 'não configurado'}`);
     console.log(`🎨 Imagens: Pollinations.ai (gratuito)`);
     console.log(`💾 Banco: ${process.env.DATABASE_URL ? 'Postgres conectado' : 'sem DATABASE_URL (histórico não persiste)'}`);

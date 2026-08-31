@@ -20,6 +20,7 @@ async function initDB() {
         picture TEXT,
         google_id TEXT,
         role TEXT DEFAULT 'user',
+        plan TEXT DEFAULT 'free',
         banned INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT NOW()
       )
@@ -41,6 +42,29 @@ async function initDB() {
         id SERIAL PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
         banned_at TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS ai_settings (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        temperature REAL DEFAULT 0.8,
+        allow_swearing INTEGER DEFAULT 1,
+        blocked_topics TEXT DEFAULT '',
+        system_prompt TEXT DEFAULT '',
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await pool.query(`
+      INSERT INTO ai_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS broadcasts (
+        id SERIAL PRIMARY KEY,
+        message TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
       )
     `);
 

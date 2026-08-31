@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kryno IA - Painel Admin</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔐</text></svg>">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0b0714; color: #f1eef7; min-height: 100vh; }
+    .hidden { display: none !important; }
+    #login-box { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: radial-gradient(circle at 50% 20%, #1a0f2e 0%, #0b0714 60%); }
+    .login-card { background: #120c1f; border: 1.5px solid rgba(168,85,247,.4); border-radius: 20px; padding: 40px; max-width: 380px; width: 90%; text-align: center; box-shadow: 0 0 40px rgba(168,85,247,.2); }
+    .login-logo { font-size: 44px; width: 80px; height: 80px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(168,85,247,.12); border: 2px solid #a855f7; box-shadow: 0 0 25px rgba(168,85,247,.6); }
+    .login-card h1 { font-size: 24px; color: #fff; margin-bottom: 6px; }
+    .login-card p { color: #9d93b3; font-size: 14px; margin-bottom: 24px; }
+    .login-card input { width: 100%; background: #16101f; border: 1.5px solid rgba(168,85,247,.4); border-radius: 12px; padding: 14px; color: #fff; font-size: 15px; margin-bottom: 12px; outline: none; }
+    .login-card input:focus { border-color: #a855f7; box-shadow: 0 0 14px rgba(168,85,247,.3); }
+    .login-card input::placeholder { color: #6b5f82; }
+    .login-card button { width: 100%; background: linear-gradient(135deg, #a855f7, #7c3aed); border: none; border-radius: 14px; padding: 14px; color: #fff; font-weight: 700; font-size: 16px; cursor: pointer; box-shadow: 0 0 14px rgba(168,85,247,.5); transition: all .2s; }
+    .login-card button:hover { box-shadow: 0 0 26px rgba(168,85,247,.7); }
+    .login-error { color: #f87171; font-size: 13px; margin-top: 10px; min-height: 18px; }
+    #dashboard { display: none; }
+    #dashboard.active { display: block; }
+    .topbar { background: #0f0a1c; border-bottom: 1px solid rgba(168,85,247,.2); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
+    .topbar-logo { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; background: rgba(168,85,247,.15); border: 1.5px solid #a855f7; box-shadow: 0 0 12px rgba(168,85,247,.5); }
+    .topbar h1 { font-size: 18px; color: #fff; }
+    .topbar a { color: #cbbfe0; text-decoration: none; font-size: 13px; background: rgba(168,85,247,.1); padding: 8px 16px; border-radius: 10px; border: 1px solid rgba(168,85,247,.3); transition: all .2s; }
+    .topbar a:hover { background: rgba(168,85,247,.2); }
+    .tabs { display: flex; gap: 6px; padding: 14px 24px; flex-wrap: wrap; border-bottom: 1px solid rgba(168,85,247,.15); }
+    .tab-btn { background: none; border: 1px solid rgba(168,85,247,.2); color: #a99cc0; padding: 9px 18px; border-radius: 10px; cursor: pointer; font-size: 13px; transition: all .2s; }
+    .tab-btn:hover { background: rgba(168,85,247,.12); color: #fff; }
+    .tab-btn.active { background: rgba(168,85,247,.2); color: #fff; border-color: #a855f7; box-shadow: 0 0 12px rgba(168,85,247,.4); }
+    .content { padding: 24px; max-width: 1200px; margin: 0 auto; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px; }
+    .stat-card { background: #16101f; border: 1px solid rgba(168,85,247,.2); border-radius: 14px; padding: 20px; }
+    .stat-card .label { color: #7a6d94; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+    .stat-card .value { font-size: 28px; font-weight: 800; color: #fff; }
+    .stat-card .icon { font-size: 22px; margin-bottom: 6px; }
+    .section-title { font-size: 18px; color: #fff; margin-bottom: 16px; }
+    .users-table { width: 100%; border-collapse: collapse; }
+    .users-table th { text-align: left; color: #7a6d94; font-size: 12px; text-transform: uppercase; padding: 12px; border-bottom: 1px solid rgba(168,85,247,.15); }
+    .users-table td { padding: 12px; border-bottom: 1px solid rgba(168,85,247,.1); font-size: 14px; color: #cbbfe0; }
+    .users-table tr:hover { background: rgba(168,85,247,.05); }
+    .plan-badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+    .plan-free { background: rgba(255,255,255,.06); color: #9d93b3; }
+    .plan-pro { background: rgba(168,85,247,.2); color: #d9c8fb; }
+    .plan-premium { background: rgba(234,179,8,.15); color: #fbbf24; }
+    .banned-badge { background: rgba(239,68,68,.15); color: #f87171; padding: 3px 8px; border-radius: 6px; font-size: 11px; }
+    .btn-small { background: rgba(168,85,247,.15); border: 1px solid rgba(168,85,247,.3); color: #d9c8fb; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; transition: all .2s; margin: 2px; }
+    .btn-small:hover { background: rgba(168,85,247,.3); }
+    .btn-small.danger { border-color: rgba(239,68,68,.4); color: #f87171; background: rgba(239,68,68,.1); }
+    .btn-small.danger:hover { background: rgba(239,68,68,.25); }
+    .btn-small.gold { border-color: rgba(234,179,8,.4); color: #fbbf24; background: rgba(234,179,8,.1); }
+    .settings-card { background: #16101f; border: 1px solid rgba(168,85,247,.2); border-radius: 16px; padding: 24px; margin-bottom: 20px; }
+    .settings-card h3 { color: #c4a8f5; margin-bottom: 16px; font-size: 16px; }
+    .setting-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 16px; }
+    .setting-row label { color: #cbbfe0; font-size: 14px; flex-shrink: 0; min-width: 180px; }
+    .setting-row .desc { color: #6b5f82; font-size: 12px; margin-top: 4px; }
+    .toggle { width: 50px; height: 28px; border-radius: 14px; background: rgba(255,255,255,.08); border: 1px solid rgba(168,85,247,.3); position: relative; cursor: pointer; transition: all .2s; flex-shrink: 0; }
+    .toggle.on { background: rgba(168,85,247,.3); border-color: #a855f7; }
+    .toggle::after { content: ''; width: 22px; height: 22px; border-radius: 50%; background: #7a6d94; position: absolute; top: 2px; left: 2px; transition: all .2s; }
+    .toggle.on::after { left: 24px; background: #a855f7; box-shadow: 0 0 10px rgba(168,85,247,.6); }
+    input[type="range"] { -webkit-appearance: none; width: 200px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, #a855f7, #7c3aed); outline: none; }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #a855f7; box-shadow: 0 0 10px rgba(168,85,247,.6); cursor: pointer; }
+    input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; border: none; background: #a855f7; box-shadow: 0 0 10px rgba(168,85,247,.6); cursor: pointer; }
+    .temp-value { color: #a855f7; font-weight: 700; font-size: 18px; min-width: 40px; text-align: center; }
+    input[type="text"], textarea { width: 100%; background: #0f0a1c; border: 1.5px solid rgba(168,85,247,.3); border-radius: 12px; padding: 12px; color: #fff; font-size: 14px; outline: none; font-family: inherit; }
+    input[type="text"]:focus, textarea:focus { border-color: #a855f7; box-shadow: 0 0 12px rgba(168,85,247,.3); }
+    textarea { min-height: 80px; resize: vertical; line-height: 1.5; }
+    .btn-save { background: linear-gradient(135deg, #a855f7, #7c3aed); border: none; border-radius: 12px; padding: 12px 30px; color: #fff; font-weight: 700; cursor: pointer; font-size: 15px; box-shadow: 0 0 14px rgba(168,85,247,.5); transition: all .2s; margin-top: 10px; }
+    .btn-save:hover { box-shadow: 0 0 24px rgba(168,85,247,.7); }
+    .broadcast-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+    .broadcast-item { background: #16101f; border: 1px solid rgba(168,85,247,.2); border-radius: 12px; padding: 16px; display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+    .broadcast-item .msg { color: #cbbfe0; font-size: 14px; line-height: 1.5; flex: 1; }
+    .broadcast-item .time { color: #6b5f82; font-size: 12px; margin-top: 6px; }
+    .saved-toast { position: fixed; bottom: 24px; right: 24px; background: rgba(168,85,247,.2); border: 1px solid #a855f7; color: #fff; padding: 14px 24px; border-radius: 12px; box-shadow: 0 0 20px rgba(168,85,247,.4); z-index: 100; transition: all .3s; opacity: 0; pointer-events: none; }
+    .saved-toast.show { opacity: 1; }
+    @media (max-width: 768px) { .setting-row { flex-direction: column; align-items: flex-start; } .setting-row label { min-width: auto; } input[type="range"] { width: 100%; } }
+  </style>
+</head>
+<body>
+  <div id="login-box">
+    <div class="login-card">
+      <div class="login-logo">🔐</div>
+      <h1>Painel Admin</h1>
+      <p>Kryno IA - Acesso restrito</p>
+      <input type="text" id="admin-user" placeholder="Usuario" autocomplete="off">
+      <input type="password" id="admin-pass" placeholder="Senha" autocomplete="off">
+      <input type="text" id="admin-pin" placeholder="PIN" autocomplete="off">
+      <button onclick="loginAdmin()">Entrar</button>
+      <div class="login-error" id="login-error"></div>
+      <a href="/" style="display:inline-block;margin-top:16px;color:#7a6d94;font-size:13px;text-decoration:none;">Voltar para o app</a>
+    </div>
+  </div>
+  <div id="dashboard">
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-logo">⚡</div>
+        <h1>Painel Admin - Kryno IA</h1>
+      </div>
+      <a href="/">Ver app</a>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchAdminTab('stats')" id="admin-tab-stats">📊 Dashboard</button>
+      <button class="tab-btn" onclick="switchAdminTab('users')" id="admin-tab-users">👥 Usuarios</button>
+      <button class="tab-btn" onclick="switchAdminTab('security')" id="admin-tab-security">🛡️ Seguranca</button>
+      <button class="tab-btn" onclick="switchAdminTab('ai')" id="admin-tab-ai">🤖 Configurar IA</button>
+      <button class="tab-btn" onclick="switchAdminTab('broadcast')" id="admin-tab-broadcast">📢 Avisos</button>
+    </div>
+    <div class="content">
+      <div class="tab-panel active" id="admin-panel-stats">
+        <div class="stats-grid" id="stats-grid"></div>
+        <div class="section-title">📈 Mensagens nos ultimos 7 dias</div>
+        <div id="chart-area" style="background:#16101f;border:1px solid rgba(168,85,247,.2);border-radius:14px;padding:20px;min-height:200px;"></div>
+      </div>
+      <div class="tab-panel" id="admin-panel-users">
+        <div class="section-title">👥 Usuarios Cadastrados</div>
+        <div style="overflow-x:auto;">
+          <table class="users-table" id="users-table">
+            <thead><tr><th>ID</th><th>Nome</th><th>Email</th><th>Plano</th><th>Status</th><th>Cadastro</th><th>Acoes</th></tr></thead>
+            <tbody id="users-list"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="tab-panel" id="admin-panel-security">
+        <div class="section-title">🛡️ Controle de Seguranca</div>
+        <div class="settings-card">
+          <h3>🔞 Filtro de Conteudo</h3>
+          <div class="setting-row">
+            <div><label>Permitir palavroes</label><div class="desc">Se desligado, a IA nao usara palavroes em nenhuma resposta</div></div>
+            <div class="toggle" id="toggle-swearing" onclick="toggleSetting('swearing')"></div>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>🚫 Bloquear Assuntos</h3>
+          <div class="setting-row" style="flex-direction:column;align-items:stretch;">
+            <label>Topicos proibidos</label>
+            <div class="desc">Separe por virgulas. Ex: politica, sexo, violencia, drogas. A IA se recusara a falar sobre esses temas.</div>
+            <textarea id="blocked-topics" placeholder="politica, sexo, violencia" style="margin-top:10px;"></textarea>
+          </div>
+          <button class="btn-save" onclick="saveSettings()">Salvar configuracoes</button>
+        </div>
+      </div>
+      <div class="tab-panel" id="admin-panel-ai">
+        <div class="section-title">🤖 Configurar IA (Kryno)</div>
+        <div class="settings-card">
+          <h3>🎚️ Temperatura / Criatividade</h3>
+          <div class="setting-row">
+            <div><label>Nivel de criatividade da IA</label><div class="desc">0 = IA seria e certinha · 1 = IA maluca e criativa</div></div>
+            <div style="display:flex;align-items:center;gap:14px;">
+              <span style="font-size:12px;color:#7a6d94;">Seria</span>
+              <input type="range" id="temperature-slider" min="0" max="1" step="0.1" value="0.8" oninput="updateTemp(this.value)">
+              <span style="font-size:12px;color:#7a6d94;">Criativa</span>
+              <span class="temp-value" id="temp-value">0.8</span>
+            </div>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>💬 Prompt do Sistema (Personalidade)</h3>
+          <div class="setting-row" style="flex-direction:column;align-items:stretch;">
+            <label>Instrucoes personalizadas para a IA</label>
+            <div class="desc">Deixe vazio para usar o padrao. Defina como a Kryno deve se comportar.</div>
+            <textarea id="system-prompt" placeholder="Ex: Voce e a Kryno IA, uma assistente brasileira simpatica e engraacada..." style="margin-top:10px;min-height:120px;"></textarea>
+          </div>
+          <button class="btn-save" onclick="saveSettings()">Salvar configuracoes</button>
+        </div>
+      </div>
+      <div class="tab-panel" id="admin-panel-broadcast">
+        <div class="section-title">📢 Mandar Avisos</div>
+        <div class="settings-card">
+          <h3>Novo aviso</h3>
+          <div class="setting-row" style="flex-direction:column;align-items:stretch;">
+            <textarea id="broadcast-msg" placeholder="Digite o aviso que todos os usuarios vao ver..." style="margin-bottom:12px;"></textarea>
+          </div>
+          <button class="btn-save" onclick="sendBroadcast()">Enviar aviso</button>
+        </div>
+        <div class="section-title" style="margin-top:24px;">Avisos enviados</div>
+        <div class="broadcast-list" id="broadcast-list"></div>
+      </div>
+    </div>
+  </div>
+  <div class="saved-toast" id="toast">Salvo!</div>
+  <script>
+    let adminToken = null;
+    let settings = { temperature: 0.8, allow_swearing: 1, blocked_topics: '', system_prompt: '' };
+
+    async function loginAdmin() {
+      const user = document.getElementById('admin-user').value.trim();
+      const pass = document.getElementById('admin-pass').value;
+      const pin = document.getElementById('admin-pin').value;
+      const errEl = document.getElementById('login-error');
+      errEl.textContent = '';
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pass: pass || user, pin })
+      });
+      const data = await res.json();
+      if (data.success) {
+        adminToken = data.token;
+        document.getElementById('login-box').style.display = 'none';
+        document.getElementById('dashboard').classList.add('active');
+        loadAll();
+      } else {
+        errEl.textContent = data.error || 'Credenciais incorretas';
+      }
+    }
+
+    document.querySelectorAll('#login-box input').forEach(inp => {
+      inp.addEventListener('keypress', e => { if (e.key === 'Enter') loginAdmin(); });
+    });
+
+    function switchAdminTab(tab) {
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('admin-panel-' + tab).classList.add('active');
+      document.getElementById('admin-tab-' + tab).classList.add('active');
+      if (tab === 'users') loadUsers();
+      if (tab === 'stats') loadStats();
+      if (tab === 'broadcast') loadBroadcasts();
+      if (tab === 'security' || tab === 'ai') loadSettings();
+    }
+
+    async function loadAll() { await loadStats(); await loadSettings(); }
+
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/admin/stats', { headers: { Authorization: 'Bearer ' + adminToken } });
+        const data = await res.json();
+        const cards = [
+          { icon: '👥', label: 'Total Usuarios', value: data.totalUsers || 0 },
+          { icon: '💬', label: 'Total Mensagens', value: data.totalMessages || 0 },
+          { icon: '📅', label: 'Mensagens Hoje', value: data.todayMessages || 0 },
+          { icon: '💎', label: 'Usuarios Pro', value: data.proUsers || 0 },
+          { icon: '🥇', label: 'Usuarios Premium', value: data.premiumUsers || 0 },
+          { icon: '🚫', label: 'Banidos', value: data.bannedUsers || 0 },
+        ];
+        document.getElementById('stats-grid').innerHTML = cards.map(c => '<div class="stat-card"><div class="icon">' + c.icon + '</div><div class="label">' + c.label + '</div><div class="value">' + c.value + '</div></div>').join('');
+        const chart = document.getElementById('chart-area');
+        if (data.messagesPerDay && data.messagesPerDay.length > 0) {
+          const maxCount = Math.max(...data.messagesPerDay.map(d => parseInt(d.count)));
+          chart.innerHTML = data.messagesPerDay.map(d => {
+            const pct = maxCount > 0 ? (parseInt(d.count) / maxCount) * 100 : 0;
+            const dateStr = new Date(d.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            return '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;"><span style="width:50px;color:#7a6d94;font-size:13px;">' + dateStr + '</span><div style="flex:1;background:rgba(255,255,255,.04);border-radius:8px;height:28px;overflow:hidden;"><div style="width:' + pct + '%;height:100%;background:linear-gradient(90deg,#a855f7,#7c3aed);border-radius:8px;display:flex;align-items:center;padding-left:10px;font-size:12px;color:#fff;font-weight:600;">' + d.count + '</div></div></div>';
+          }).join('');
+        } else {
+          chart.innerHTML = '<p style="color:#7a6d94;text-align:center;padding:40px;">Sem dados ainda</p>';
+        }
+      } catch (err) { console.error('Erro ao carregar stats:', err); }
+    }
+
+    async function loadUsers() {
+      try {
+        const res = await fetch('/api/admin/users', { headers: { Authorization: 'Bearer ' + adminToken } });
+        const data = await res.json();
+        const list = document.getElementById('users-list');
+        if (!data.users || data.users.length === 0) {
+          list.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#7a6d94;padding:40px;">Nenhum usuario cadastrado ainda</td></tr>';
+          return;
+        }
+        list.innerHTML = data.users.map(u => {
+          const planClass = u.plan === 'pro' ? 'plan-pro' : u.plan === 'premium' ? 'plan-premium' : 'plan-free';
+          const planLabel = u.plan === 'pro' ? '💎 Pro' : u.plan === 'premium' ? '🥇 Premium' : 'Gratis';
+          const dateStr = new Date(u.created_at).toLocaleDateString('pt-BR');
+          const isBanned = u.banned == 1;
+          return '<tr><td>' + u.id + '</td><td>' + (u.name || '—') + '</td><td>' + (u.email || '—') + '</td><td><span class="plan-badge ' + planClass + '">' + planLabel + '</span></td><td>' + (isBanned ? '<span class="banned-badge">Banido</span>' : 'Ativo') + '</td><td>' + dateStr + '</td><td><button class="btn-small" onclick="setPlan(' + u.id + ', \'pro\')">💎 Pro</button><button class="btn-small gold" onclick="setPlan(' + u.id + ', \'premium\')">🥇 Premium</button><button class="btn-small" onclick="setPlan(' + u.id + ', \'free\')">Gratis</button>' + (isBanned ? '<button class="btn-small" onclick="unbanUser(\'' + u.email + '\')">Desbanir</button>' : '<button class="btn-small danger" onclick="banUser(\'' + u.email + '\')">Banir</button>') + '</td></tr>';
+        }).join('');
+      } catch (err) { console.error('Erro ao carregar usuarios:', err); }
+    }
+
+    async function setPlan(id, plan) {
+      const res = await fetch('/api/admin/users/' + id + '/plan', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken }, body: JSON.stringify({ plan }) });
+      const data = await res.json();
+      if (data.success) { showToast('Plano atualizado!'); loadUsers(); }
+      else { showToast('Erro: ' + (data.error || 'falhou'), true); }
+    }
+
+    async function banUser(email) {
+      if (!confirm('Banir ' + email + '?')) return;
+      const res = await fetch('/api/admin/ban', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken }, body: JSON.stringify({ email }) });
+      const data = await res.json();
+      if (data.success) { showToast('Usuario banido!'); loadUsers(); loadStats(); }
+    }
+
+    async function unbanUser(email) {
+      const res = await fetch('/api/admin/unban', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken }, body: JSON.stringify({ email }) });
+      const data = await res.json();
+      if (data.success) { showToast('Usuario desbanido!'); loadUsers(); loadStats(); }
+    }
+
+    async function loadSettings() {
+      try {
+        const res = await fetch('/api/admin/settings', { headers: { Authorization: 'Bearer ' + adminToken } });
+        const data = await res.json();
+        settings = data;
+        const toggleSw = document.getElementById('toggle-swearing');
+        if (data.allow_swearing == 1 || data.allow_swearing === undefined) toggleSw.classList.add('on');
+        else toggleSw.classList.remove('on');
+        const tempSlider = document.getElementById('temperature-slider');
+        tempSlider.value = data.temperature || 0.8;
+        document.getElementById('temp-value').textContent = data.temperature || 0.8;
+        document.getElementById('blocked-topics').value = data.blocked_topics || '';
+        document.getElementById('system-prompt').value = data.system_prompt || '';
+      } catch (err) { console.error('Erro ao carregar settings:', err); }
+    }
+
+    function toggleSetting(key) { document.getElementById('toggle-' + key).classList.toggle('on'); }
+    function updateTemp(val) { document.getElementById('temp-value').textContent = val; }
+
+    async function saveSettings() {
+      const temp = parseFloat(document.getElementById('temperature-slider').value);
+      const allowSwearing = document.getElementById('toggle-swearing').classList.contains('on') ? 1 : 0;
+      const blockedTopics = document.getElementById('blocked-topics').value;
+      const systemPrompt = document.getElementById('system-prompt').value;
+      const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken }, body: JSON.stringify({ temperature: temp, allow_swearing: allowSwearing, blocked_topics: blockedTopics, system_prompt: systemPrompt }) });
+      const data = await res.json();
+      if (data.success) showToast('Configuracoes salvas!');
+      else showToast('Erro ao salvar', true);
+    }
+
+    async function sendBroadcast() {
+      const msg = document.getElementById('broadcast-msg').value.trim();
+      if (!msg) return showToast('Digite uma mensagem', true);
+      const res = await fetch('/api/admin/broadcast', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + adminToken }, body: JSON.stringify({ message: msg }) });
+      const data = await res.json();
+      if (data.success) { document.getElementById('broadcast-msg').value = ''; showToast('Aviso enviado!'); loadBroadcasts(); }
+      else { showToast('Erro: ' + (data.error || 'falhou'), true); }
+    }
+
+    async function loadBroadcasts() {
+      try {
+        const res = await fetch('/api/admin/broadcasts', { headers: { Authorization: 'Bearer ' + adminToken } });
+        const data = await res.json();
+        const list = document.getElementById('broadcast-list');
+        if (!data.broadcasts || data.broadcasts.length === 0) {
+          list.innerHTML = '<p style="color:#7a6d94;padding:20px;">Nenhum aviso enviado ainda</p>';
+          return;
+        }
+        list.innerHTML = data.broadcasts.map(b => '<div class="broadcast-item"><div><div class="msg">' + b.message + '</div><div class="time">' + new Date(b.created_at).toLocaleString('pt-BR') + '</div></div><button class="btn-small danger" onclick="deleteBroadcast(' + b.id + ')">Excluir</button></div>').join('');
+      } catch (err) { console.error('Erro ao carregar broadcasts:', err); }
+    }
+
+    async function deleteBroadcast(id) {
+      const res = await fetch('/api/admin/broadcast/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + adminToken } });
+      const data = await res.json();
+      if (data.success) loadBroadcasts();
+    }
+
+    let toastTimer = null;
+    function showToast(msg, isError) {
+      const toast = document.getElementById('toast');
+      toast.textContent = isError ? '❌ ' + msg : '✅ ' + msg;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function() { toast.classList.remove('show'); }, 3000);
+    }
+
+    (async function() {
+      try {
+        const res = await fetch('/api/admin/check');
+        if (res.ok) {
+          adminToken = 'cookie';
+          document.getElementById('login-box').style.display = 'none';
+          document.getElementById('dashboard').classList.add('active');
+          loadAll();
+        }
+      } catch {}
+    })();
+  </script>
+</body>
+</html>
