@@ -1,13 +1,13 @@
 {
   "version": 2,
-  "functions": {
-    "server.js": {
-      "memory": 1024,
-      "maxDuration": 30,
-      "includeFiles": "public/**"
+  "builds": [
+    {
+      "src": "server.js",
+      "use": "@vercel/node",
+      "config": { "includeFiles": "public/**" }
     }
-  },
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/server.js" }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "server.js" }
   ]
 }
