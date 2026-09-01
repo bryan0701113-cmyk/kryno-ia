@@ -298,7 +298,7 @@ app.post('/api/transcrever', upload.single('audio'), async (req, res) => {
 app.get('/api/historico', authMiddleware, async (req, res) => {
   try {
     await ensureDB();
-    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 50', [req.user.id]);
+    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 50', [String(req.user.id)]);
     res.json({ messages: result.rows });
   } catch {
     res.json({ messages: [] });
@@ -311,7 +311,7 @@ app.get('/api/historico/buscar', authMiddleware, async (req, res) => {
     await ensureDB();
     const result = await pool.query(
       'SELECT * FROM messages WHERE user_id = $1 AND (user_message ILIKE $2 OR bot_reply ILIKE $2) ORDER BY timestamp DESC',
-      [req.user.id, `%${q}%`]
+      [String(req.user.id), `%${q}%`]
     );
     res.json({ messages: result.rows });
   } catch {
@@ -322,7 +322,7 @@ app.get('/api/historico/buscar', authMiddleware, async (req, res) => {
 app.delete('/api/historico', authMiddleware, async (req, res) => {
   try {
     await ensureDB();
-    await pool.query('DELETE FROM messages WHERE user_id = $1', [req.user.id]);
+    await pool.query('DELETE FROM messages WHERE user_id = $1', [String(req.user.id)]);
     res.json({ success: true });
   } catch {
     res.json({ success: false });
@@ -332,7 +332,7 @@ app.delete('/api/historico', authMiddleware, async (req, res) => {
 app.delete('/api/historico/:id', authMiddleware, async (req, res) => {
   try {
     await ensureDB();
-    await pool.query('DELETE FROM messages WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    await pool.query('DELETE FROM messages WHERE id = $1 AND user_id = $2', [req.params.id, String(req.user.id)]);
     res.json({ success: true });
   } catch {
     res.json({ success: false });
@@ -342,7 +342,7 @@ app.delete('/api/historico/:id', authMiddleware, async (req, res) => {
 app.get('/api/historico/exportar', authMiddleware, async (req, res) => {
   try {
     await ensureDB();
-    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp ASC', [req.user.id]);
+    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp ASC', [String(req.user.id)]);
     let txt = '=== HISTÓRICO KRYNO IA ===\n\n';
     result.rows.forEach(m => {
       txt += `[${m.timestamp}]\nVocê: ${m.user_message}\nKryno: ${m.bot_reply}\n\n---\n\n`;
@@ -358,7 +358,7 @@ app.get('/api/historico/exportar', authMiddleware, async (req, res) => {
 app.get('/api/historico/ultimas', authMiddleware, async (req, res) => {
   try {
     await ensureDB();
-    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10', [req.user.id]);
+    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10', [String(req.user.id)]);
     res.json({ messages: result.rows, count: result.rows.length });
   } catch {
     res.json({ messages: [], count: 0 });
@@ -417,7 +417,7 @@ app.get('/api/admin/users', adminMiddleware, async (req, res) => {
 app.get('/api/admin/users/:id/historico', adminMiddleware, async (req, res) => {
   try {
     await ensureDB();
-    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 100', [req.params.id]);
+    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 100', [String(req.params.id)]);
     res.json({ messages: result.rows });
   } catch {
     res.json({ messages: [] });
