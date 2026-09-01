@@ -245,7 +245,7 @@ app.post('/api/chat', async (req, res) => {
     res.json({ reply });
   } catch (err) {
     console.error('Erro no chat:', err.message, err.status, err.error);
-    res.json({ reply: 'Erro debug: ' + err.message + ' (status: ' + (err.status||'?') + ')' });
+    res.json({ reply: 'Ops! Deu um erro aqui 😅 Tenta de novo!' });
   }
 });
 
