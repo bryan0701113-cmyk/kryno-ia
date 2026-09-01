@@ -1,5 +1,71 @@
 // ===== KRYNO IA - LÓGICA DO FRONTEND =====
 
+// ===== BETA PIN =====
+let betaUnlocked = false;
+
+function showPINScreen() {
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('chat-screen').classList.add('hidden');
+  document.getElementById('pin-screen').classList.remove('hidden');
+  const pinInput = document.getElementById('pin-input');
+  pinInput.value = '';
+  pinInput.focus();
+  document.getElementById('pin-error').textContent = '';
+}
+
+async function verificarPIN() {
+  const pin = document.getElementById('pin-input').value.trim();
+  const errorEl = document.getElementById('pin-error');
+  
+  if (pin.length !== 4) {
+    errorEl.textContent = 'PIN deve ter 4 dígitos';
+    return;
+  }
+
+  errorEl.textContent = 'Verificando...';
+
+  try {
+    const res = await fetch('/api/beta/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin })
+    });
+    const data = await res.json();
+
+    if (data.authorized) {
+      betaUnlocked = true;
+      errorEl.textContent = '';
+      // Store the beta token in sessionStorage
+      sessionStorage.setItem('beta_token', data.token);
+      // Now check if user is logged in with Google
+      await checkAuth();
+      // If not logged in, show login screen
+      if (document.getElementById('login-screen').classList.contains('hidden') && 
+          document.getElementById('chat-screen').classList.contains('hidden')) {
+        // Still on pin screen, show login
+        document.getElementById('pin-screen').classList.add('hidden');
+        document.getElementById('login-screen').classList.remove('hidden');
+      }
+    } else {
+      errorEl.textContent = data.message || 'PIN inválido';
+      document.getElementById('pin-input').value = '';
+      document.getElementById('pin-input').focus();
+    }
+  } catch (err) {
+    errorEl.textContent = 'Erro ao verificar. Tente novamente.';
+  }
+}
+
+// Enter key on PIN input
+document.addEventListener('DOMContentLoaded', () => {
+  const pinInput = document.getElementById('pin-input');
+  if (pinInput) {
+    pinInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') verificarPIN();
+    });
+  }
+});
+
 let chatHistory = [];
 let uploadedImage = null;
 let currentTab = 'chat';
@@ -38,12 +104,54 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderComandos();
 });
 
+// ===== INICIALIZAÇÃO =====
+// Fluxo: PIN -> Google Login -> Chat
+async function initApp() {
+  // Check for error params from OAuth redirect
+  const params = new URLSearchParams(window.location.search);
+  const error = params.get('error');
+  if (error === 'beta_not_authorized') {
+    // Email not in whitelist - clear beta token and show PIN with error
+    sessionStorage.removeItem('beta_token');
+    betaUnlocked = false;
+    showPINScreen();
+    document.getElementById('pin-error').textContent = 'Seu email não tem acesso beta';
+    // Clean URL
+    window.history.replaceState({}, '', '/');
+    return;
+  }
+
+  // Check if beta was already unlocked in this session
+  const betaToken = sessionStorage.getItem('beta_token');
+  if (betaToken) {
+    betaUnlocked = true;
+    await checkAuth();
+    if (!document.getElementById('chat-screen').classList.contains('hidden')) return;
+    // Not logged in, show login
+    document.getElementById('login-screen').classList.remove('hidden');
+  } else {
+    // Show PIN screen first
+    showPINScreen();
+  }
+}
+
 async function checkAuth() {
   try {
     const res = await fetch('/auth/me');
     const data = await res.json();
     if (data.authenticated) {
-      showChatScreen(data.user);
+      // Double check beta access on backend
+      const betaRes = await fetch('/api/beta/check', {
+        headers: { 'x-beta-token': sessionStorage.getItem('beta_token') || '' }
+      });
+      const betaData = await betaRes.json();
+      if (betaData.authorized) {
+        showChatScreen(data.user);
+      } else {
+        // Email not in whitelist
+        showPINScreen();
+        document.getElementById('pin-error').textContent = 'Seu email não tem acesso beta';
+      }
     }
   } catch {}
 }
@@ -65,7 +173,8 @@ function showChatScreen(user = null) {
 }
 
 function enterAsGuest() {
-  showChatScreen();
+  // Guests can't use beta - must have PIN + Google login
+  alert('O beta requer login com Google + PIN');
 }
 
 async function logout() {
@@ -167,7 +276,10 @@ async function sendMessage() {
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-beta-token': sessionStorage.getItem('beta_token') || ''
+      },
       body: JSON.stringify({
         message,
         image: uploadedImage,

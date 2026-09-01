@@ -68,6 +68,26 @@ async function initDB() {
       )
     `);
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS beta_acesso (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        pin TEXT NOT NULL,
+        ativo INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Seed inicial - só roda se a tabela estiver vazia
+    const betaCount = await pool.query('SELECT COUNT(*) FROM beta_acesso');
+    if (parseInt(betaCount.rows[0].count) === 0) {
+      await pool.query(
+        'INSERT INTO beta_acesso (email, pin, ativo) VALUES ($1, $2, 1), ($3, $4, 1) ON CONFLICT DO NOTHING',
+        ['brayanborges131@gmail.com', '1212', 'igor.dias@example.com', '3434']
+      );
+      console.log('✅ Beta acesso: usuários iniciais cadastrados');
+    }
+
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)`);
 
