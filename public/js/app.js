@@ -306,6 +306,51 @@ async function sendMessage() {
   document.getElementById('image-preview').classList.remove('has-image');
 }
 
+// Limpa notação LaTeX que às vezes escapa do modelo e formata texto
+function formatarTexto(text) {
+  if (!text) return '';
+
+  let t = text;
+
+  // Remove delimitadores LaTeX \[ \] e \( \)
+  t = t.replace(/\\\[/g, '').replace(/\\\]/g, '');
+  t = t.replace(/\\\(/g, '').replace(/\\\)/g, '');
+
+  // Converte \frac{a}{b} em a/b
+  t = t.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '$1/$2');
+
+  // Converte \times em x, \cdot em x
+  t = t.replace(/\\times/g, 'x').replace(/\\cdot/g, 'x');
+
+  // Remove \text{...} mantendo o conteúdo
+  t = t.replace(/\\text\{([^{}]*)\}/g, '$1');
+
+  // Remove outros comandos LaTeX genéricos remanescentes tipo \algumacoisa ou \,
+  t = t.replace(/\\[a-zA-Z]+/g, '');
+  t = t.replace(/\\[,;!]/g, '');
+
+  // Remove markdown de cabeçalho ##, ###
+  t = t.replace(/^#{1,6}\s*/gm, '');
+
+  // Converte **negrito** ou *negrito* em <strong>
+  t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
+
+  // Escapa HTML restante pra evitar injeção, mas preserva as tags <strong> que criamos
+  const parts = t.split(/(<strong>|<\/strong>)/g);
+  t = parts.map(p => {
+    if (p === '<strong>' || p === '</strong>') return p;
+    const div = document.createElement('div');
+    div.textContent = p;
+    return div.innerHTML;
+  }).join('');
+
+  // Quebras de linha
+  t = t.replace(/\n/g, '<br>');
+
+  return t;
+}
+
 function addMessage(sender, text) {
   const container = document.getElementById('chat-messages');
   const row = document.createElement('div');
@@ -324,7 +369,11 @@ function addMessage(sender, text) {
 
   const bubble = document.createElement('div');
   bubble.className = 'msg';
-  bubble.textContent = text;
+  if (sender === 'bot') {
+    bubble.innerHTML = formatarTexto(text);
+  } else {
+    bubble.textContent = text;
+  }
 
   col.appendChild(label);
   col.appendChild(bubble);
