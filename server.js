@@ -139,13 +139,6 @@ app.get('/auth/google/callback', async (req, res) => {
     const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     const user = userResult.rows[0];
 
-    // BETA: Check if email is in whitelist
-    const betaCheck = await pool.query('SELECT * FROM beta_acesso WHERE email = $1 AND ativo = 1', [email]);
-    if (betaCheck.rows.length === 0) {
-      // Email not authorized for beta - redirect with error
-      return res.redirect('/?error=beta_not_authorized');
-    }
-
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, plan: user.plan || 'free' }, JWT_SECRET, { expiresIn: '7d' });
 
     res.cookie('token', token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 });
@@ -165,14 +158,7 @@ app.get('/auth/me', async (req, res) => {
   if (!token) return res.json({ authenticated: false });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    // Check beta access
-    let betaAuthorized = false;
-    try {
-      await ensureDB();
-      const betaCheck = await pool.query('SELECT * FROM beta_acesso WHERE email = $1 AND ativo = 1', [decoded.email]);
-      betaAuthorized = betaCheck.rows.length > 0;
-    } catch {}
-    res.json({ authenticated: true, user: decoded, betaAuthorized });
+    res.json({ authenticated: true, user: decoded });
   } catch {
     res.json({ authenticated: false });
   }
@@ -188,115 +174,8 @@ async function getAISettings() {
   return { temperature: 0.8, allow_swearing: 1, blocked_topics: '', system_prompt: '' };
 }
 
-// ===== BETA ACCESS =====
-const BETA_SECRET = process.env.BETA_SECRET || 'kryno-beta-2026';
-
-// Verify PIN - returns a token if valid
-app.post('/api/beta/verify', async (req, res) => {
-  const { pin } = req.body;
-  if (!pin || pin.length !== 4) {
-    return res.json({ authorized: false, message: 'PIN inválido' });
-  }
-
-  try {
-    await ensureDB();
-    const result = await pool.query('SELECT * FROM beta_acesso WHERE pin = $1 AND ativo = 1', [pin]);
-    if (result.rows.length === 0) {
-      return res.json({ authorized: false, message: 'PIN incorreto' });
-    }
-
-    // Generate a beta token (JWT with the email)
-    const user = result.rows[0];
-    const betaToken = jwt.sign({ beta: true, email: user.email, pin: pin }, BETA_SECRET, { expiresIn: '7d' });
-    res.json({ authorized: true, token: betaToken, email: user.email });
-  } catch (err) {
-    console.error('Erro beta verify:', err.message);
-    res.json({ authorized: false, message: 'Erro ao verificar acesso' });
-  }
-});
-
-// Check if user has beta access (by email from Google login)
-app.get('/api/beta/check', async (req, res) => {
-  const betaToken = req.headers['x-beta-token'] || '';
-  const googleToken = req.cookies.token;
-
-  try {
-    let email = '';
-
-    // Try beta token first
-    if (betaToken) {
-      try {
-        const decoded = jwt.verify(betaToken, BETA_SECRET);
-        email = decoded.email;
-      } catch {}
-    }
-
-    // If no beta token, try Google token
-    if (!email && googleToken) {
-      try {
-        const decoded = jwt.verify(googleToken, JWT_SECRET);
-        email = decoded.email;
-      } catch {}
-    }
-
-    if (!email) {
-      return res.json({ authorized: false, message: 'Não autenticado' });
-    }
-
-    await ensureDB();
-    const result = await pool.query('SELECT * FROM beta_acesso WHERE email = $1 AND ativo = 1', [email]);
-    if (result.rows.length > 0) {
-      res.json({ authorized: true, email: email });
-    } else {
-      res.json({ authorized: false, message: 'Email não autorizado' });
-    }
-  } catch (err) {
-    res.json({ authorized: false, message: 'Erro ao verificar' });
-  }
-});
-
-// Middleware: check beta access before allowing chat
-async function betaMiddleware(req, res, next) {
-  const betaToken = req.headers['x-beta-token'] || '';
-  const googleToken = req.cookies.token;
-  let email = '';
-
-  // Try beta token
-  if (betaToken) {
-    try {
-      const decoded = jwt.verify(betaToken, BETA_SECRET);
-      email = decoded.email;
-    } catch {}
-  }
-
-  // Try Google token
-  if (!email && googleToken) {
-    try {
-      const decoded = jwt.verify(googleToken, JWT_SECRET);
-      email = decoded.email;
-    } catch {}
-  }
-
-  if (!email) {
-    // Allow anonymous but don't call Groq - handled in chat endpoint
-    req.betaAuthorized = false;
-    return next();
-  }
-
-  try {
-    await ensureDB();
-    const result = await pool.query('SELECT * FROM beta_acesso WHERE email = $1 AND ativo = 1', [email]);
-    req.betaAuthorized = result.rows.length > 0;
-    req.betaEmail = email;
-    next();
-  } catch {
-    req.betaAuthorized = false;
-    next();
-  }
-}
-
 // ===== CHAT =====
-app.post('/api/chat', betaMiddleware, async (req, res) => {
+app.post('/api/chat', async (req, res) => {
   const { message, image, history } = req.body;
   const token = req.cookies.token;
   let userId = 'anonimo';
@@ -308,13 +187,6 @@ app.post('/api/chat', betaMiddleware, async (req, res) => {
       userId = String(decoded.id);
       userEmail = decoded.email;
     } catch {}
-  }
-
-  // BLOCK: if not beta authorized, don't call Groq
-  if (!req.betaAuthorized) {
-    return res.json({
-      reply: '🔒 Você precisa de acesso beta autorizado para conversar com a Kryno. Faça login com um email autorizado e digite o PIN correto.'
-    });
   }
 
   if (!groq) {
@@ -433,17 +305,17 @@ app.post('/api/transcrever', upload.single('audio'), async (req, res) => {
 });
 
 // ===== HISTÓRICO =====
-app.get('/api/historico', authMiddleware, async (req, res) => {
+app.get('/api/historico', async (req, res) => {
   try {
     await ensureDB();
-    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 50', [String(req.user.id)]);
+    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 50', ['anonimo']);
     res.json({ messages: result.rows });
   } catch {
     res.json({ messages: [] });
   }
 });
 
-app.get('/api/historico/buscar', authMiddleware, async (req, res) => {
+app.get('/api/historico/buscar', async (req, res) => {
   const { q } = req.query;
   try {
     await ensureDB();
@@ -457,17 +329,17 @@ app.get('/api/historico/buscar', authMiddleware, async (req, res) => {
   }
 });
 
-app.delete('/api/historico', authMiddleware, async (req, res) => {
+app.delete('/api/historico', async (req, res) => {
   try {
     await ensureDB();
-    await pool.query('DELETE FROM messages WHERE user_id = $1', [String(req.user.id)]);
+    await pool.query('DELETE FROM messages WHERE user_id = $1', ['anonimo']);
     res.json({ success: true });
   } catch {
     res.json({ success: false });
   }
 });
 
-app.delete('/api/historico/:id', authMiddleware, async (req, res) => {
+app.delete('/api/historico/:id', async (req, res) => {
   try {
     await ensureDB();
     await pool.query('DELETE FROM messages WHERE id = $1 AND user_id = $2', [req.params.id, String(req.user.id)]);
@@ -477,10 +349,10 @@ app.delete('/api/historico/:id', authMiddleware, async (req, res) => {
   }
 });
 
-app.get('/api/historico/exportar', authMiddleware, async (req, res) => {
+app.get('/api/historico/exportar', async (req, res) => {
   try {
     await ensureDB();
-    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp ASC', [String(req.user.id)]);
+    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp ASC', ['anonimo']);
     let txt = '=== HISTÓRICO KRYNO IA ===\n\n';
     result.rows.forEach(m => {
       txt += `[${m.timestamp}]\nVocê: ${m.user_message}\nKryno: ${m.bot_reply}\n\n---\n\n`;
@@ -493,62 +365,13 @@ app.get('/api/historico/exportar', authMiddleware, async (req, res) => {
   }
 });
 
-app.get('/api/historico/ultimas', authMiddleware, async (req, res) => {
+app.get('/api/historico/ultimas', async (req, res) => {
   try {
     await ensureDB();
-    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10', [String(req.user.id)]);
+    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10', ['anonimo']);
     res.json({ messages: result.rows, count: result.rows.length });
   } catch {
     res.json({ messages: [], count: 0 });
-  }
-});
-
-// ===== ADMIN BETA MANAGEMENT =====
-app.get('/api/admin/beta', adminMiddleware, async (req, res) => {
-  try {
-    await ensureDB();
-    const result = await pool.query('SELECT id, email, pin, ativo, created_at FROM beta_acesso ORDER BY created_at DESC');
-    res.json({ users: result.rows });
-  } catch {
-    res.json({ users: [] });
-  }
-});
-
-app.post('/api/admin/beta', adminMiddleware, async (req, res) => {
-  const { email, pin } = req.body;
-  if (!email || !pin || pin.length !== 4) {
-    return res.json({ success: false, message: 'Email e PIN (4 dígitos) obrigatórios' });
-  }
-  try {
-    await ensureDB();
-    await pool.query(
-      'INSERT INTO beta_acesso (email, pin, ativo) VALUES ($1, $2, 1) ON CONFLICT (email) DO UPDATE SET pin = $2, ativo = 1',
-      [email, pin]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    res.json({ success: false, message: err.message });
-  }
-});
-
-app.patch('/api/admin/beta/:id', adminMiddleware, async (req, res) => {
-  const { ativo } = req.body;
-  try {
-    await ensureDB();
-    await pool.query('UPDATE beta_acesso SET ativo = $1 WHERE id = $2', [ativo ? 1 : 0, req.params.id]);
-    res.json({ success: true });
-  } catch {
-    res.json({ success: false });
-  }
-});
-
-app.delete('/api/admin/beta/:id', adminMiddleware, async (req, res) => {
-  try {
-    await ensureDB();
-    await pool.query('DELETE FROM beta_acesso WHERE id = $1', [req.params.id]);
-    res.json({ success: true });
-  } catch {
-    res.json({ success: false });
   }
 });
 

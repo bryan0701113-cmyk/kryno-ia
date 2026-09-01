@@ -9,47 +9,9 @@
 </head>
 <body>
   <div id="app">
-    <!-- TELA DE LOGIN -->
-    <div id="login-screen" class="screen">
-      <div class="login-box">
-        <div class="login-spacer-top"></div>
-        <div class="logo logo-mascote">
-          <img src="https://media.base44.com/images/public/6a5257388c246b4e393afdf7/45e9d95e4_generated_image.png" alt="Kryno">
-        </div>
-        <h1>Oi, eu sou a Kryno</h1>
-        <p class="subtitle">Sua assistente de IA. Converso, organizo sua agenda e crio imagens pra você.</p>
-        <div class="login-spacer"></div>
-        <div id="google-login-container">
-          <a href="/auth/google" class="btn-google" id="google-btn">
-            Continuar com Google
-          </a>
-        </div>
-        <button class="btn-apple" onclick="loginApple()">Continuar com Apple</button>
-        <button class="btn-guest-link" onclick="enterAsGuest()">Entrar sem cadastro</button>
-      </div>
-    </div>
-
-
-    <!-- TELA DE PIN BETA -->
-    <div id="pin-screen" class="screen hidden">
-      <div class="login-box">
-        <div class="login-spacer-top"></div>
-        <div class="logo logo-mascote">
-          <img src="https://media.base44.com/images/public/6a5257388c246b4e393afdf7/45e9d95e4_generated_image.png" alt="Kryno">
-        </div>
-        <h1>Acesso Beta</h1>
-        <p class="subtitle">Digite seu PIN de 4 dígitos para continuar</p>
-        <div class="login-spacer"></div>
-        <div class="pin-container">
-          <input type="password" id="pin-input" class="pin-input" maxlength="4" inputmode="numeric" placeholder="••••" autocomplete="off">
-          <div id="pin-error" class="pin-error"></div>
-          <button class="btn-pin" onclick="verificarPIN()">Entrar</button>
-        </div>
-      </div>
-    </div>
 
     <!-- TELA PRINCIPAL - CHAT -->
-    <div id="chat-screen" class="screen hidden">
+    <div id="chat-screen" class="screen">
       <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
       <!-- SIDEBAR -->
