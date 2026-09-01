@@ -1,9 +1,8 @@
 const express = require('express');
 const multer = require('multer');
-const passport = require('passport');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const session = require('express-session');
 const cookieParser = require('cookie-parser');
+const crypto = require('crypto');
+const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
@@ -23,14 +22,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'kryno-secret';
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
-app.use(session({
-  secret: JWT_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: { maxAge: 24 * 60 * 60 * 1000 }
-}));
-app.use(passport.initialize());
-app.use(passport.session());
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 const upload = multer({
@@ -49,7 +41,7 @@ if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'sua-chave-groq-aqu
   console.log('✅ Groq API configurada');
 }
 
-const GROQ_CHAT_MODEL = process.env.GROQ_CHAT_MODEL || 'llama-3.3-70b-versatile';
+const GROQ_CHAT_MODEL = process.env.GROQ_CHAT_MODEL || 'openai/gpt-oss-120b';
 const GROQ_WHISPER_MODEL = process.env.GROQ_WHISPER_MODEL || 'whisper-large-v3';
 
 // ===== DB READY =====
@@ -61,40 +53,21 @@ async function ensureDB() {
   }
 }
 
-// ===== PASSPORT GOOGLE =====
-if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'seu-client-id') {
-  passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL || '/auth/google/callback'
-  }, async (accessToken, refreshToken, profile, done) => {
-    try {
-      await ensureDB();
-      const email = profile.emails[0].value;
-      const name = profile.displayName;
-      const picture = profile.photos?.[0]?.value || '';
+// ===== GOOGLE OAUTH (STATELESS - funciona na Vercel serverless) =====
+// Não usa express-session/passport porque MemoryStore não persiste entre invocações serverless
 
-      const banned = await pool.query('SELECT * FROM banned_users WHERE email = $1', [email]);
-      if (banned.rows.length > 0) return done(null, false, { message: 'Usuário banido' });
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || 'https://kryno29.vercel.app/auth/google/callback';
+const GOOGLE_ENABLED = GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID !== 'seu-client-id';
 
-      await pool.query(
-        `INSERT INTO users (email, name, picture, google_id) VALUES ($1, $2, $3, $4)
-         ON CONFLICT (email) DO UPDATE SET name = $2, picture = $3, google_id = $4`,
-        [email, name, picture, profile.id]
-      );
-
-      const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-      const user = userResult.rows[0];
-      const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, plan: user.plan || 'free' }, JWT_SECRET, { expiresIn: '7d' });
-      return done(null, { user, token });
-    } catch (err) {
-      return done(err);
-    }
-  }));
+function generateOAuthState() {
+  return jwt.sign({ rnd: crypto.randomBytes(16).toString('hex'), ts: Date.now() }, JWT_SECRET, { expiresIn: '10m' });
 }
 
-passport.serializeUser((user, done) => done(null, user));
-passport.deserializeUser((user, done) => done(null, user));
+function verifyOAuthState(state) {
+  try { jwt.verify(state, JWT_SECRET); return true; } catch { return false; }
+}
 
 // ===== MIDDLEWARES DE AUTENTICAÇÃO =====
 function authMiddleware(req, res, next) {
@@ -121,18 +94,62 @@ function adminMiddleware(req, res, next) {
   }
 }
 
-// ===== ROTAS DE AUTENTICAÇÃO =====
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-app.get('/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/?error=login_failed' }),
-  (req, res) => {
-    res.cookie('token', req.user.token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 });
+// ===== ROTAS DE AUTENTICAÇÃO (STATELESS) =====
+app.get('/auth/google', (req, res) => {
+  if (!GOOGLE_ENABLED) return res.redirect('/?error=google_not_configured');
+  const state = generateOAuthState();
+  const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID);
+  authUrl.searchParams.set('redirect_uri', GOOGLE_CALLBACK_URL);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('scope', 'profile email');
+  authUrl.searchParams.set('state', state);
+  authUrl.searchParams.set('prompt', 'select_account');
+  res.redirect(authUrl.toString());
+});
+
+app.get('/auth/google/callback', async (req, res) => {
+  const { code, state, error } = req.query;
+  if (error) return res.redirect('/?error=login_failed');
+  if (!code || !state || !verifyOAuthState(state)) return res.redirect('/?error=login_failed');
+
+  try {
+    const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
+      code, client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET,
+      redirect_uri: GOOGLE_CALLBACK_URL, grant_type: 'authorization_code'
+    });
+    const accessToken = tokenResponse.data.access_token;
+    const profileResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const profile = profileResponse.data;
+    const email = profile.email;
+    const name = profile.name || email;
+    const picture = profile.picture || '';
+
+    await ensureDB();
+    const banned = await pool.query('SELECT * FROM banned_users WHERE email = $1', [email]);
+    if (banned.rows.length > 0) return res.redirect('/?error=banned');
+
+    await pool.query(
+      `INSERT INTO users (email, name, picture, google_id) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (email) DO UPDATE SET name = $2, picture = $3, google_id = $4`,
+      [email, name, picture, profile.id]
+    );
+    const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = userResult.rows[0];
+    const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, plan: user.plan || 'free' }, JWT_SECRET, { expiresIn: '7d' });
+
+    res.cookie('token', token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 });
     res.redirect('/');
+  } catch (err) {
+    console.error('Erro no OAuth callback:', err.message);
+    res.redirect('/?error=login_failed');
   }
-);
+});
+
 app.post('/auth/logout', (req, res) => {
   res.clearCookie('token');
-  req.logout(() => {});
   res.json({ success: true });
 });
 app.get('/auth/me', (req, res) => {
@@ -553,7 +570,8 @@ if (process.env.VERCEL) {
     console.log(`🔥 Kryno IA rodando na porta ${PORT}`);
     console.log(`👉 http://localhost:${PORT}`);
     console.log(`👉 http://localhost:${PORT}/admin (Painel Admin)`);
-    console.log(`🤖 Groq: ${groq ? 'ativo' : 'não configurado'}`);
+    console.log(`🤖 Groq: ${groq ? 'ativo' : 'não configurado'} (modelo: ${GROQ_CHAT_MODEL})`);
+    console.log(`🔐 Google OAuth: ${GOOGLE_ENABLED ? 'ativo' : 'não configurado'}`);
     console.log(`🎨 Imagens: Pollinations.ai (gratuito)`);
     console.log(`💾 Banco: ${process.env.DATABASE_URL ? 'Postgres conectado' : 'sem DATABASE_URL (histórico não persiste)'}`);
   });

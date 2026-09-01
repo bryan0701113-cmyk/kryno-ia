@@ -1,7 +1,7 @@
 {
   "name": "kryno-ia",
   "version": "1.1.0",
-  "description": "Kryno IA - Sua inteligência artificial completa (Vercel + Groq)",
+  "description": "Kryno IA - Sua intelig\u00eancia artificial completa (Vercel + Groq)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -17,9 +17,6 @@
     "cookie-parser": "^1.4.6",
     "dotenv": "^16.3.1",
     "uuid": "^9.0.0",
-    "passport": "^0.7.0",
-    "passport-google-oauth20": "^2.0.0",
-    "express-session": "^1.17.3",
     "pg": "^8.11.3",
     "@vercel/node": "^3.0.20"
   },
