@@ -47,22 +47,50 @@ function loginApple() {
 // ===== GOOGLE IDENTITY SERVICES (GIS) - Login sem redirect =====
 const GOOGLE_CLIENT_ID = '666951639821-v88t9pinocsoeq6cup1rf2s5isvbhcj0.apps.googleusercontent.com';
 
-function loginGoogleGIS() {
+function initGoogleGIS() {
   if (!window.google || !google.accounts || !google.accounts.id) {
-    // GIS ainda carregando - tenta de novo em 500ms
-    setTimeout(loginGoogleGIS, 500);
+    // GIS ainda carregando - tenta de novo em 300ms
+    setTimeout(initGoogleGIS, 300);
     return;
   }
 
   google.accounts.id.initialize({
     client_id: GOOGLE_CLIENT_ID,
-    callback: handleGoogleCredential,
-    auto_select: false,
-    cancel_on_tap_outside: false
+    callback: handleGoogleCredential
   });
 
-  // Abre o popup de seleção de conta do Google (One Tap / dialog)
-  google.accounts.id.prompt();
+  // Renderizar o botão do Google direto na página (mais confiável que prompt)
+  const container = document.getElementById('g-btn-wrap');
+  if (container) {
+    google.accounts.id.renderButton(container, {
+      type: 'standard',
+      theme: 'filled_black',
+      size: 'large',
+      text: 'continue_with',
+      shape: 'pill',
+      width: 320,
+      locale: 'pt-BR'
+    });
+    // Esconder o botão customizado pois o do Google já foi renderado
+    const customBtn = document.getElementById('google-btn');
+    if (customBtn) customBtn.style.display = 'none';
+  }
+}
+
+function loginGoogleGIS() {
+  // Fallback: se o GIS não carregou ainda, avisa o usuário
+  if (!window.google || !google.accounts || !google.accounts.id) {
+    alert('Carregando login do Google... tente novamente em 2 segundos.');
+    return;
+  }
+  // Se o botão do Google foi renderizado, clica nele
+  const gBtn = document.querySelector('#g-btn-wrap [role="button"], #g-btn-wrap div > div');
+  if (gBtn) {
+    gBtn.click();
+  } else {
+    // Fallback: tenta o prompt
+    google.accounts.id.prompt();
+  }
 }
 
 async function handleGoogleCredential(response) {
@@ -76,7 +104,7 @@ async function handleGoogleCredential(response) {
     const data = await res.json();
 
     if (data.success) {
-      showChatScreen();
+      showChatScreen(data.user);
     } else {
       alert('Erro no login: ' + (data.error || 'tente novamente'));
     }
@@ -84,6 +112,9 @@ async function handleGoogleCredential(response) {
     alert('Erro de conexão. Tente novamente.');
   }
 }
+
+// Inicializar GIS quando a página carregar
+document.addEventListener('DOMContentLoaded', initGoogleGIS);
 
 async function logout() {
   await fetch('/auth/logout', { method: 'POST' });
