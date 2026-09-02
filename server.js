@@ -145,7 +145,11 @@ app.get('/auth/google/callback', async (req, res) => {
     res.redirect('/');
   } catch (err) {
     console.error('Erro no OAuth callback:', err.message);
-    res.redirect('/?error=login_failed');
+    if (err.response) {
+      console.error('Google API error data:', JSON.stringify(err.response.data));
+      console.error('Google API status:', err.response.status);
+    }
+    res.redirect('/?error=login_failed&reason=' + encodeURIComponent(err.message || 'unknown'));
   }
 });
 
