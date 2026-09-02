@@ -475,3 +475,49 @@ body {
 }
 .btn-pin:hover { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(168,85,247,.55); }
 .btn-pin:active { transform: translateY(0); }
+
+
+/* Botão excluir histórico */
+.sidebar-hist-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sidebar-hist-item span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.hist-delete-btn {
+  background: rgba(255, 70, 70, 0.15);
+  border: none;
+  color: #ff6b6b;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.hist-delete-btn:hover {
+  background: rgba(255, 70, 70, 0.35);
+  color: #ff4444;
+}
+
+.hist-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.hist-item-header .hist-delete-btn {
+  font-size: 11px;
+  padding: 3px 10px;
+}

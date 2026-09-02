@@ -100,8 +100,9 @@ async function renderSidebarHistorico() {
       return;
     }
     list.innerHTML = data.messages.slice(0, 8).map(m => `
-      <div class="sidebar-hist-item" onclick="switchTab('historico')" title="${escapeHtml(m.user_message)}">
-        ${escapeHtml(m.user_message).slice(0, 40)}
+      <div class="sidebar-hist-item" title="${escapeHtml(m.user_message)}">
+        <span onclick="switchTab('historico')">${escapeHtml(m.user_message).slice(0, 36)}</span>
+        <button class="hist-delete-btn" onclick="event.stopPropagation(); deleteChat(${m.id})" title="Excluir">✕</button>
       </div>
     `).join('');
   } catch {
@@ -389,7 +390,10 @@ async function carregarHistorico() {
     }
     list.innerHTML = data.messages.map(m => `
       <div class="historico-item">
-        <div class="timestamp">${new Date(m.timestamp).toLocaleString('pt-BR')}</div>
+        <div class="hist-item-header">
+          <div class="timestamp">${new Date(m.timestamp).toLocaleString('pt-BR')}</div>
+          <button class="hist-delete-btn" onclick="deleteChat(${m.id})" title="Excluir conversa">✕ Excluir</button>
+        </div>
         <div class="user-msg">Você: ${escapeHtml(m.user_message)}</div>
         <div class="bot-msg">Kryno: ${escapeHtml(m.bot_reply)}</div>
       </div>
@@ -413,12 +417,30 @@ async function buscarHistorico() {
     }
     list.innerHTML = data.messages.map(m => `
       <div class="historico-item">
-        <div class="timestamp">${new Date(m.timestamp).toLocaleString('pt-BR')}</div>
+        <div class="hist-item-header">
+          <div class="timestamp">${new Date(m.timestamp).toLocaleString('pt-BR')}</div>
+          <button class="hist-delete-btn" onclick="deleteChat(${m.id})" title="Excluir conversa">✕ Excluir</button>
+        </div>
         <div class="user-msg">Você: ${escapeHtml(m.user_message)}</div>
         <div class="bot-msg">Kryno: ${escapeHtml(m.bot_reply)}</div>
       </div>
     `).join('');
   } catch {}
+}
+
+async function deleteChat(id) {
+  if (!confirm('Excluir esta conversa do histórico?')) return;
+  try {
+    const res = await fetch(`/api/historico/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      carregarHistorico();
+      renderSidebarHistorico();
+    } else {
+      alert('Erro ao excluir. Tente novamente.');
+    }
+  } catch {
+    alert('Erro ao excluir. Tente novamente.');
+  }
 }
 
 async function limparHistorico() {
