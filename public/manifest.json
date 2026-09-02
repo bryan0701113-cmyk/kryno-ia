@@ -2,8 +2,8 @@
   "name": "Kryno IA",
   "short_name": "Kryno",
   "description": "Sua assistente de IA. Converso, organizo sua agenda e crio imagens pra voce.",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "https://kryno29.vercel.app/",
+  "scope": "https://kryno29.vercel.app/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0b0714",
@@ -13,19 +13,19 @@
   "categories": ["productivity", "education", "utilities"],
   "icons": [
     {
-      "src": "/icons/icon-192.png",
+      "src": "https://kryno29.vercel.app/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/icon-512.png",
+      "src": "https://kryno29.vercel.app/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/maskable-512.png",
+      "src": "https://kryno29.vercel.app/icons/maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
