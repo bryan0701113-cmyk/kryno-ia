@@ -44,59 +44,13 @@ function loginApple() {
 }
 
 
-// ===== LOGIN GOOGLE via Google Identity Services (GIS) =====
-// GIS renderButton: login acontece 100% na pagina, sem redirect, sem popup
-const GOOGLE_CLIENT_ID = '666951639821-v88t9pinocsoeq6cup1rf2s5isvbhcj0.apps.googleusercontent.com';
-let gisReady = false;
-
-function initGoogleGIS() {
-  if (gisReady) return;
-  if (!window.google || !google.accounts || !google.accounts.id) {
-    setTimeout(initGoogleGIS, 200);
-    return;
-  }
-  
-  google.accounts.id.initialize({
-    client_id: GOOGLE_CLIENT_ID,
-    callback: handleGoogleCredential
-  });
-  
-  var container = document.getElementById('g-btn-wrap');
-  if (container) {
-    google.accounts.id.renderButton(container, {
-      type: 'standard',
-      theme: 'filled_black',
-      size: 'large',
-      text: 'continue_with',
-      shape: 'pill',
-      width: 280,
-      locale: 'pt-BR'
-    });
-    gisReady = true;
-  }
-}
-
-// Fallback: se GIS nao carregar em 8s, mostra o botao customizado
-setTimeout(function() {
-  if (!gisReady) {
-    var customBtn = document.getElementById('google-btn');
-    if (customBtn) customBtn.style.display = '';
-  }
-}, 8000);
-
+// ===== LOGIN GOOGLE (redirect flow - funciona no site e TWA) =====
 function loginGoogleGIS() {
-  if (gisReady && window.google && google.accounts && google.accounts.id) {
-    var gBtn = document.querySelector('#g-btn-wrap div[role="button"]') || 
-               document.querySelector('#g-btn-wrap div div') ||
-               document.querySelector('#g-btn-wrap div iframe');
-    if (gBtn) { gBtn.click(); return; }
-    google.accounts.id.prompt();
-  } else {
-    window.location.href = '/auth/google';
-  }
+  window.location.href = '/auth/google';
 }
 
 async function handleGoogleCredential(response) {
+  // Mantida para compatibilidade caso GIS carregue
   try {
     const res = await fetch('/auth/google/token', {
       method: 'POST',
@@ -106,15 +60,11 @@ async function handleGoogleCredential(response) {
     const data = await res.json();
     if (data.success) {
       showChatScreen(data.user);
-    } else {
-      alert('Erro no login: ' + (data.error || 'tente novamente'));
     }
   } catch (err) {
     alert('Erro de conexao. Tente novamente.');
   }
 }
-
-document.addEventListener('DOMContentLoaded', initGoogleGIS);
 
 async function logout() {
   await fetch('/auth/logout', { method: 'POST' });

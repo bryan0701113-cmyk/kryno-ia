@@ -1,8 +1,6 @@
-const CACHE_NAME = 'kryno-ia-v8';
+const CACHE_NAME = 'kryno-ia-v9';
 const ASSETS = [
   '/',
-  '/css/style.css',
-  '/js/app.js',
   '/manifest.json'
 ];
 
@@ -40,17 +38,23 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
+  // NUNCA cachear JS, CSS ou HTML - sempre buscar do servidor
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css') || 
+      url.pathname === '/' || e.request.mode === 'navigate') {
+    e.respondWith(fetch(e.request).catch(() => caches.match('/')));
+    return;
+  }
+
   e.respondWith(
     caches.match(e.request).then(cached => {
       return cached || fetch(e.request).then(resp => {
-        // Nunca cachear respostas de redirect ou não-ok (Cache API não permite redirect)
         if (!resp || resp.redirected || !resp.ok || resp.type === 'opaqueredirect') {
           return resp;
         }
         const copy = resp.clone();
         caches.open(CACHE_NAME).then(cache => cache.put(e.request, copy)).catch(() => {});
         return resp;
-      }).catch(() => cached);
+      }).catch(() => cached)
     })
   );
 });

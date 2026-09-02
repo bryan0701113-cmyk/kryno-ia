@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kryno IA 🔥 - Sua IA Completa</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css?v=8">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#a855f7">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -15,7 +15,6 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="Kryno IA">
   <meta name="description" content="Sua assistente de IA. Converso, organizo sua agenda e crio imagens pra voce.">
-  <script src="https://accounts.google.com/gsi/client" defer></script>
 </head>
 <body>
   <div id="app">
@@ -30,8 +29,7 @@
         <p class="subtitle">Sua assistente de IA. Converso, organizo sua agenda e crio imagens pra você.</p>
         <div class="login-spacer"></div>
         <div id="google-login-container">
-          <div id="g-btn-wrap" style="width:100%;display:flex;justify-content:center;min-height:44px;"></div>
-          <button class="btn-google" id="google-btn" onclick="loginGoogleGIS()">
+                    <button class="btn-google" id="google-btn" onclick="loginGoogleGIS()">
             Continuar com Google
           </button>
         </div>
@@ -230,7 +228,7 @@
         </div>
       </div>
   </div>
-  <script src="/js/app.js"></script>
+  <script src="/js/app.js?v=8"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
