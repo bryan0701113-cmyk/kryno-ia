@@ -521,3 +521,36 @@ body {
   font-size: 11px;
   padding: 3px 10px;
 }
+
+
+/* Botão abrir conversa no chat */
+.hist-item-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.hist-open-btn {
+  background: rgba(138, 43, 226, 0.15);
+  border: none;
+  color: #b388ff;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.hist-open-btn:hover {
+  background: rgba(138, 43, 226, 0.35);
+  color: #d3b3ff;
+}
+
+/* Highlight sidebar items as clickable */
+.sidebar-hist-item span {
+  cursor: pointer;
+}
+
+.sidebar-hist-item span:hover {
+  color: #b388ff;
+}

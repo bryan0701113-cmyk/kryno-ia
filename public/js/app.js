@@ -105,7 +105,7 @@ async function renderSidebarHistorico() {
     }
     list.innerHTML = data.messages.slice(0, 8).map(m => `
       <div class="sidebar-hist-item" title="${escapeHtml(m.user_message)}">
-        <span onclick="switchTab('historico')">${escapeHtml(m.user_message).slice(0, 36)}</span>
+        <span onclick="loadConversation(${m.id})">${escapeHtml(m.user_message).slice(0, 36)}</span>
         <button class="hist-delete-btn" onclick="event.stopPropagation(); deleteChat(${m.id})" title="Excluir">✕</button>
       </div>
     `).join('');
@@ -396,7 +396,10 @@ async function carregarHistorico() {
       <div class="historico-item">
         <div class="hist-item-header">
           <div class="timestamp">${new Date(m.timestamp).toLocaleString('pt-BR')}</div>
-          <button class="hist-delete-btn" onclick="deleteChat(${m.id})" title="Excluir conversa">✕ Excluir</button>
+          <div class="hist-item-actions">
+            <button class="hist-open-btn" onclick="loadConversation(${m.id})" title="Abrir no chat">💬 Abrir</button>
+            <button class="hist-delete-btn" onclick="deleteChat(${m.id})" title="Excluir conversa">✕ Excluir</button>
+          </div>
         </div>
         <div class="user-msg">Você: ${escapeHtml(m.user_message)}</div>
         <div class="bot-msg">Kryno: ${escapeHtml(m.bot_reply)}</div>
@@ -423,13 +426,40 @@ async function buscarHistorico() {
       <div class="historico-item">
         <div class="hist-item-header">
           <div class="timestamp">${new Date(m.timestamp).toLocaleString('pt-BR')}</div>
-          <button class="hist-delete-btn" onclick="deleteChat(${m.id})" title="Excluir conversa">✕ Excluir</button>
+          <div class="hist-item-actions">
+            <button class="hist-open-btn" onclick="loadConversation(${m.id})" title="Abrir no chat">💬 Abrir</button>
+            <button class="hist-delete-btn" onclick="deleteChat(${m.id})" title="Excluir conversa">✕ Excluir</button>
+          </div>
         </div>
         <div class="user-msg">Você: ${escapeHtml(m.user_message)}</div>
         <div class="bot-msg">Kryno: ${escapeHtml(m.bot_reply)}</div>
       </div>
     `).join('');
   } catch {}
+}
+
+async function loadConversation(id) {
+  try {
+    const res = await fetch('/api/historico');
+    const data = await res.json();
+    const msg = data.messages.find(m => m.id === id);
+    if (!msg) {
+      alert('Conversa não encontrada.');
+      return;
+    }
+    // Switch to chat tab and show the conversation
+    chatHistory = [
+      { role: 'user', content: msg.user_message },
+      { role: 'assistant', content: msg.bot_reply }
+    ];
+    const container = document.getElementById('chat-messages');
+    container.innerHTML = '';
+    addMessage('user', msg.user_message);
+    addMessage('bot', msg.bot_reply);
+    switchTab('chat');
+  } catch (err) {
+    alert('Erro ao carregar conversa.');
+  }
 }
 
 async function deleteChat(id) {
