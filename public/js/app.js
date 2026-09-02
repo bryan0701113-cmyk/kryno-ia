@@ -466,14 +466,15 @@ async function deleteChat(id) {
   if (!confirm('Excluir esta conversa do histórico?')) return;
   try {
     const res = await fetch(`/api/historico/${id}`, { method: 'DELETE' });
-    if (res.ok) {
+    const data = await res.json();
+    if (res.ok && data.success !== false) {
       carregarHistorico();
       renderSidebarHistorico();
     } else {
-      alert('Erro ao excluir. Tente novamente.');
+      alert('Erro ao excluir: ' + (data.error || 'tente novamente'));
     }
   } catch {
-    alert('Erro ao excluir. Tente novamente.');
+    alert('Erro de conexão. Tente novamente.');
   }
 }
 

@@ -312,7 +312,15 @@ app.post('/api/transcrever', upload.single('audio'), async (req, res) => {
 app.get('/api/historico', async (req, res) => {
   try {
     await ensureDB();
-    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 50', ['anonimo']);
+    const token = req.cookies.token || req.headers.authorization?.replace('Bearer ');
+    let userId = 'anonimo';
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        userId = String(decoded.id);
+      } catch {}
+    }
+    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 50', [userId]);
     res.json({ messages: result.rows });
   } catch {
     res.json({ messages: [] });
@@ -323,9 +331,17 @@ app.get('/api/historico/buscar', async (req, res) => {
   const { q } = req.query;
   try {
     await ensureDB();
+    const token = req.cookies.token || req.headers.authorization?.replace('Bearer ');
+    let userId = 'anonimo';
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        userId = String(decoded.id);
+      } catch {}
+    }
     const result = await pool.query(
       'SELECT * FROM messages WHERE user_id = $1 AND (user_message ILIKE $2 OR bot_reply ILIKE $2) ORDER BY timestamp DESC',
-      ['anonimo', `%${q}%`]
+      [userId, `%${q}%`]
     );
     res.json({ messages: result.rows });
   } catch {
@@ -336,7 +352,15 @@ app.get('/api/historico/buscar', async (req, res) => {
 app.delete('/api/historico', async (req, res) => {
   try {
     await ensureDB();
-    await pool.query('DELETE FROM messages WHERE user_id = $1', ['anonimo']);
+    const token = req.cookies.token || req.headers.authorization?.replace('Bearer ');
+    let userId = 'anonimo';
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        userId = String(decoded.id);
+      } catch {}
+    }
+    await pool.query('DELETE FROM messages WHERE user_id = $1', [userId]);
     res.json({ success: true });
   } catch {
     res.json({ success: false });
@@ -346,17 +370,34 @@ app.delete('/api/historico', async (req, res) => {
 app.delete('/api/historico/:id', async (req, res) => {
   try {
     await ensureDB();
-    await pool.query('DELETE FROM messages WHERE id = $1 AND user_id = $2', [req.params.id, 'anonimo']);
+    const token = req.cookies.token || req.headers.authorization?.replace('Bearer ');
+    let userId = 'anonimo';
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        userId = String(decoded.id);
+      } catch {}
+    }
+    await pool.query('DELETE FROM messages WHERE id = $1 AND user_id = $2', [req.params.id, userId]);
     res.json({ success: true });
-  } catch {
-    res.json({ success: false });
+  } catch (err) {
+    console.error('Erro ao deletar mensagem:', err.message);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
 app.get('/api/historico/exportar', async (req, res) => {
   try {
     await ensureDB();
-    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp ASC', ['anonimo']);
+    const token = req.cookies.token || req.headers.authorization?.replace('Bearer ');
+    let userId = 'anonimo';
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        userId = String(decoded.id);
+      } catch {}
+    }
+    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp ASC', [userId]);
     let txt = '=== HISTÓRICO KRYNO IA ===\n\n';
     result.rows.forEach(m => {
       txt += `[${m.timestamp}]\nVocê: ${m.user_message}\nKryno: ${m.bot_reply}\n\n---\n\n`;
@@ -372,7 +413,15 @@ app.get('/api/historico/exportar', async (req, res) => {
 app.get('/api/historico/ultimas', async (req, res) => {
   try {
     await ensureDB();
-    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10', ['anonimo']);
+    const token = req.cookies.token || req.headers.authorization?.replace('Bearer ');
+    let userId = 'anonimo';
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        userId = String(decoded.id);
+      } catch {}
+    }
+    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10', [userId]);
     res.json({ messages: result.rows, count: result.rows.length });
   } catch {
     res.json({ messages: [], count: 0 });
