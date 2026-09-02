@@ -1,18 +1,33 @@
 // ===== KRYNO IA - LÓGICA DO FRONTEND =====
 
 // ===== INICIALIZAÇÃO =====
-// Sem login, sem PIN - entra direto no chat
 async function initApp() {
-  showChatScreen();
+  // Check if user is already logged in (Google OAuth cookie)
+  try {
+    const res = await fetch('/auth/me');
+    const data = await res.json();
+    if (data.authenticated) {
+      showChatScreen(data.user);
+      return;
+    }
+  } catch {}
+  // Not logged in - show login screen
+  document.getElementById('login-screen').classList.remove('hidden');
 }
 
-
 function showChatScreen(user = null) {
+  document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('chat-screen').classList.remove('hidden');
   const avatar = document.getElementById('user-avatar');
   const info = document.getElementById('user-info');
-  avatar.textContent = '⚡';
-  info.innerHTML = `<div class="u-name">Kryno IA</div>`;
+  if (user) {
+    const name = user.name || user.email || 'Convidado';
+    avatar.textContent = name.trim().charAt(0).toUpperCase() || '?';
+    info.innerHTML = `<div class="u-name">${name}</div>`;
+  } else {
+    avatar.textContent = '?';
+    info.innerHTML = `<div class="u-name">Convidado</div>`;
+  }
   renderSidebarHistorico();
 }
 
@@ -20,7 +35,12 @@ function enterAsGuest() {
   showChatScreen();
 }
 
+function loginApple() {
+  alert('Login com Apple em breve! Por enquanto, use Google ou entre sem cadastro. 🍎');
+}
+
 async function logout() {
+  await fetch('/auth/logout', { method: 'POST' });
   location.reload();
 }
 
@@ -508,7 +528,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// ===== LOGIN APPLE (placeholder até configurar Sign in with Apple) =====
-function loginApple() {
-  alert('Login com Apple em breve! Por enquanto, use Google ou entre sem cadastro. 🍎');
-}
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', () => {
+  initApp();
+});

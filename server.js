@@ -321,7 +321,7 @@ app.get('/api/historico/buscar', async (req, res) => {
     await ensureDB();
     const result = await pool.query(
       'SELECT * FROM messages WHERE user_id = $1 AND (user_message ILIKE $2 OR bot_reply ILIKE $2) ORDER BY timestamp DESC',
-      [String(req.user.id), `%${q}%`]
+      ['anonimo', `%${q}%`]
     );
     res.json({ messages: result.rows });
   } catch {
@@ -342,7 +342,7 @@ app.delete('/api/historico', async (req, res) => {
 app.delete('/api/historico/:id', async (req, res) => {
   try {
     await ensureDB();
-    await pool.query('DELETE FROM messages WHERE id = $1 AND user_id = $2', [req.params.id, String(req.user.id)]);
+    await pool.query('DELETE FROM messages WHERE id = $1 AND user_id = $2', [req.params.id, 'anonimo']);
     res.json({ success: true });
   } catch {
     res.json({ success: false });
