@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "app.vercel.kryno29.twa",
+    "sha256_cert_fingerprints": ["05:D4:89:F7:9D:1D:F7:02:75:48:C0:6A:DA:D9:6D:26:3E:B3:BC:F1:C3:4D:63:AF:6D:9C:F0:08:EB:50:BA:CA"]
+  }
+}]
