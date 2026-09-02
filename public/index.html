@@ -6,10 +6,18 @@
   <title>Kryno IA 🔥 - Sua IA Completa</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
   <link rel="stylesheet" href="/css/style.css">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#a855f7">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Kryno IA">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="Kryno IA">
+  <meta name="description" content="Sua assistente de IA. Converso, organizo sua agenda e crio imagens pra voce.">
 </head>
 <body>
   <div id="app">
-
     <!-- TELA DE LOGIN -->
     <div id="login-screen" class="screen">
       <div class="login-box">
@@ -221,5 +229,12 @@
       </div>
   </div>
   <script src="/js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>
