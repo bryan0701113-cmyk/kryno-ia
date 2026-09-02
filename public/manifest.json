@@ -1,36 +1,39 @@
 {
   "name": "Kryno IA",
-  "short_name": "Kryno",
+  "short_name": "Kryno IA",
   "description": "Sua assistente de IA. Converso, organizo sua agenda e crio imagens pra voce.",
-  "start_url": "https://kryno29.vercel.app/",
-  "scope": "https://kryno29.vercel.app/",
+  "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0b0714",
-  "theme_color": "#a855f7",
+  "theme_color": "#8b5cf6",
+  "scope": "/",
   "lang": "pt-BR",
-  "dir": "ltr",
-  "categories": ["productivity", "education", "utilities"],
+  "categories": ["productivity", "utilities"],
   "icons": [
     {
-      "src": "https://kryno29.vercel.app/icons/icon-192.png",
+      "src": "https://media.base44.com/images/public/6a5257388c246b4e393afdf7/45e9d95e4_generated_image.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://kryno29.vercel.app/icons/icon-512.png",
+      "src": "https://media.base44.com/images/public/6a5257388c246b4e393afdf7/45e9d95e4_generated_image.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "https://kryno29.vercel.app/icons/maskable-512.png",
+      "src": "https://media.base44.com/images/public/6a5257388c246b4e393afdf7/45e9d95e4_generated_image.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "https://media.base44.com/images/public/6a5257388c246b4e393afdf7/45e9d95e4_generated_image.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     }
-  ],
-  "screenshots": [],
-  "prefer_related_applications": false
+  ]
 }
