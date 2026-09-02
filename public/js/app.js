@@ -31,6 +31,10 @@ function showChatScreen(user = null) {
   renderSidebarHistorico();
 }
 
+let chatHistory = [];
+let uploadedImage = null;
+let currentTab = 'chat';
+
 function enterAsGuest() {
   showChatScreen();
 }
