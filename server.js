@@ -97,7 +97,11 @@ function adminMiddleware(req, res, next) {
 // ===== ROTAS DE AUTENTICAÇÃO (STATELESS) =====
 app.get('/auth/google', (req, res) => {
   if (!GOOGLE_ENABLED) return res.redirect('/?error=google_not_configured');
+  const isPopup = req.query.popup === '1';
   const state = generateOAuthState();
+  // Guardar flag popup no state via cookie de curta duração
+  if (isPopup) res.cookie('oauth_popup', '1', { httpOnly: true, maxAge: 600000 });
+  else res.clearCookie('oauth_popup');
   const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   authUrl.searchParams.set('client_id', GOOGLE_CLIENT_ID);
   authUrl.searchParams.set('redirect_uri', GOOGLE_CALLBACK_URL);
@@ -142,6 +146,14 @@ app.get('/auth/google/callback', async (req, res) => {
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, plan: user.plan || 'free' }, JWT_SECRET, { expiresIn: '7d' });
 
     res.cookie('token', token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 });
+    
+    // Se veio de popup, retorna HTML que fecha a popup e avisa a página pai
+    if (req.cookies.oauth_popup === '1') {
+      res.clearCookie('oauth_popup');
+      const userJson = JSON.stringify({ id: user.id, email: user.email, name: user.name, picture: user.picture, role: user.role, plan: user.plan || 'free' });
+      return res.send(`<!DOCTYPE html><html><head><title>Login</title></head><body><p style="font-family:sans-serif;text-align:center;padding:40px">Login feito! Fechando...</p><script>window.opener.postMessage({type:'google-login-success',user:${userJson}},'*');setTimeout(()=>window.close(),100);</script></body></html>`);
+    }
+    
     res.redirect('/');
   } catch (err) {
     console.error('Erro no OAuth callback:', err.message);
