@@ -43,6 +43,48 @@ function loginApple() {
   alert('Login com Apple em breve! Por enquanto, use Google ou entre sem cadastro. 🍎');
 }
 
+
+// ===== GOOGLE IDENTITY SERVICES (GIS) - Login sem redirect =====
+const GOOGLE_CLIENT_ID = '666951639821-v88t9pinocsoeq6cup1rf2s5isvbhcj0.apps.googleusercontent.com';
+
+function loginGoogleGIS() {
+  if (!window.google || !google.accounts || !google.accounts.id) {
+    // GIS ainda carregando - tenta de novo em 500ms
+    setTimeout(loginGoogleGIS, 500);
+    return;
+  }
+
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleGoogleCredential,
+    auto_select: false,
+    cancel_on_tap_outside: false
+  });
+
+  // Abre o popup de seleção de conta do Google (One Tap / dialog)
+  google.accounts.id.prompt();
+}
+
+async function handleGoogleCredential(response) {
+  try {
+    const res = await fetch('/auth/google/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential: response.credential })
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      showChatScreen();
+    } else {
+      alert('Erro no login: ' + (data.error || 'tente novamente'));
+    }
+  } catch (err) {
+    alert('Erro de conexão. Tente novamente.');
+  }
+}
+
 async function logout() {
   await fetch('/auth/logout', { method: 'POST' });
   location.reload();

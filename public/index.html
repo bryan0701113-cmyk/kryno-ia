@@ -15,6 +15,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="Kryno IA">
   <meta name="description" content="Sua assistente de IA. Converso, organizo sua agenda e crio imagens pra voce.">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <div id="app">
@@ -29,9 +30,10 @@
         <p class="subtitle">Sua assistente de IA. Converso, organizo sua agenda e crio imagens pra você.</p>
         <div class="login-spacer"></div>
         <div id="google-login-container">
-          <a href="/auth/google" class="btn-google" id="google-btn">
+          <div id="g-btn-wrap" style="width:100%;display:flex;justify-content:center;"></div>
+          <button class="btn-google" id="google-btn" onclick="loginGoogleGIS()">
             Continuar com Google
-          </a>
+          </button>
         </div>
         <button class="btn-apple" onclick="loginApple()">Continuar com Apple</button>
         <button class="btn-guest-link" onclick="enterAsGuest()">Entrar sem cadastro</button>

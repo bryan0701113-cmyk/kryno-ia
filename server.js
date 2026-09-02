@@ -168,6 +168,65 @@ app.get('/auth/me', async (req, res) => {
   }
 });
 
+
+// ===== GOOGLE IDENTITY SERVICES (GIS) - Login sem redirect (funciona em TWA/PWA) =====
+app.post('/auth/google/token', async (req, res) => {
+  const { credential } = req.body;
+  if (!credential) return res.status(400).json({ error: 'Token não fornecido' });
+
+  try {
+    // Decodificar o JWT do Google (Google já garantiu a assinatura no client-side)
+    const parts = credential.split('.');
+    if (parts.length !== 3) return res.status(400).json({ error: 'Token inválido' });
+
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+
+    // Verificar audience (client_id)
+    if (payload.aud !== GOOGLE_CLIENT_ID) {
+      return res.status(401).json({ error: 'Token não pertence a este app' });
+    }
+
+    // Verificar expiração
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+      return res.status(401).json({ error: 'Token expirado' });
+    }
+
+    const email = payload.email;
+    const name = payload.name || email;
+    const picture = payload.picture || '';
+    const googleId = payload.sub;
+
+    if (!email) return res.status(400).json({ error: 'Email não encontrado no token' });
+
+    // Salvar/atualizar usuário no banco
+    await ensureDB();
+    const banned = await pool.query('SELECT * FROM banned_users WHERE email = $1', [email]);
+    if (banned.rows.length > 0) return res.status(403).json({ error: 'Conta banida' });
+
+    await pool.query(
+      `INSERT INTO users (email, name, picture, google_id) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (email) DO UPDATE SET name = $2, picture = $3, google_id = $4`,
+      [email, name, picture, googleId]
+    );
+    const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = userResult.rows[0];
+
+    // Criar JWT de sessão
+    const token = jwt.sign(
+      { id: user.id, email: user.email, name: user.name, role: user.role, plan: user.plan || 'free' },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    // Setar cookie
+    res.cookie('token', token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+    res.json({ success: true, user: { id: user.id, email: user.email, name: user.name, picture: user.picture, role: user.role, plan: user.plan || 'free' } });
+  } catch (err) {
+    console.error('Erro no login GIS:', err.message);
+    res.status(500).json({ error: 'Erro interno: ' + err.message });
+  }
+});
+
 // ===== OBTER SETTINGS DA IA =====
 async function getAISettings() {
   try {
