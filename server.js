@@ -114,14 +114,23 @@ app.get('/auth/google', (req, res) => {
 
 app.get('/auth/google/callback', async (req, res) => {
   const { code, state, error } = req.query;
-  if (error) return res.redirect('/?error=login_failed');
-  if (!code || !state || !verifyOAuthState(state)) return res.redirect('/?error=login_failed');
+  console.log('Callback received:', { hasCode: !!code, hasState: !!state, error });
+  if (error) return res.redirect('/?error=login_failed&reason=' + encodeURIComponent(error));
+  if (!code) return res.redirect('/?error=login_failed&reason=no_code');
+  if (!state) return res.redirect('/?error=login_failed&reason=no_state');
+  if (!verifyOAuthState(state)) {
+    console.error('State verification failed. State:', state ? state.substring(0,20)+'...' : 'null');
+    return res.redirect('/?error=login_failed&reason=invalid_state');
+  }
+  console.log('State verified, exchanging code for token...');
 
   try {
+    console.log('Exchanging code for token with:', { clientId: GOOGLE_CLIENT_ID ? 'SET' : 'NOT SET', clientSecret: GOOGLE_CLIENT_SECRET ? 'SET' : 'NOT SET', redirectUri: GOOGLE_CALLBACK_URL });
     const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
       code, client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET,
       redirect_uri: GOOGLE_CALLBACK_URL, grant_type: 'authorization_code'
     });
+    console.log('Token exchange successful!');
     const accessToken = tokenResponse.data.access_token;
     const profileResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: { Authorization: `Bearer ${accessToken}` }
@@ -160,8 +169,14 @@ app.get('/auth/google/callback', async (req, res) => {
     if (err.response) {
       console.error('Google API error data:', JSON.stringify(err.response.data));
       console.error('Google API status:', err.response.status);
+      console.error('Google API headers:', JSON.stringify(err.response.headers));
     }
-    res.redirect('/?error=login_failed&reason=' + encodeURIComponent(err.message || 'unknown'));
+    if (err.request) {
+      console.error('Request was made but no response received');
+    }
+    console.error('Full error:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
+    const reason = err.response ? JSON.stringify(err.response.data) : (err.message || 'unknown');
+    res.redirect('/?error=login_failed&reason=' + encodeURIComponent(reason));
   }
 });
 
