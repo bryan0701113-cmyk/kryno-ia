@@ -44,23 +44,24 @@ function loginApple() {
 }
 
 
-// ===== GOOGLE IDENTITY SERVICES (GIS) - Login sem redirect =====
+// ===== LOGIN GOOGLE via Google Identity Services (GIS) =====
+// GIS renderButton: login acontece 100% na pagina, sem redirect, sem popup
 const GOOGLE_CLIENT_ID = '666951639821-v88t9pinocsoeq6cup1rf2s5isvbhcj0.apps.googleusercontent.com';
+let gisReady = false;
 
 function initGoogleGIS() {
+  if (gisReady) return;
   if (!window.google || !google.accounts || !google.accounts.id) {
-    // GIS ainda carregando - tenta de novo em 300ms
-    setTimeout(initGoogleGIS, 300);
+    setTimeout(initGoogleGIS, 200);
     return;
   }
-
+  
   google.accounts.id.initialize({
     client_id: GOOGLE_CLIENT_ID,
     callback: handleGoogleCredential
   });
-
-  // Renderizar o botão do Google direto na página (mais confiável que prompt)
-  const container = document.getElementById('g-btn-wrap');
+  
+  var container = document.getElementById('g-btn-wrap');
   if (container) {
     google.accounts.id.renderButton(container, {
       type: 'standard',
@@ -68,28 +69,30 @@ function initGoogleGIS() {
       size: 'large',
       text: 'continue_with',
       shape: 'pill',
-      width: 320,
+      width: 280,
       locale: 'pt-BR'
     });
-    // Esconder o botão customizado pois o do Google já foi renderado
-    const customBtn = document.getElementById('google-btn');
-    if (customBtn) customBtn.style.display = 'none';
+    gisReady = true;
   }
 }
 
-function loginGoogleGIS() {
-  // Fallback: se o GIS não carregou ainda, avisa o usuário
-  if (!window.google || !google.accounts || !google.accounts.id) {
-    alert('Carregando login do Google... tente novamente em 2 segundos.');
-    return;
+// Fallback: se GIS nao carregar em 8s, mostra o botao customizado
+setTimeout(function() {
+  if (!gisReady) {
+    var customBtn = document.getElementById('google-btn');
+    if (customBtn) customBtn.style.display = '';
   }
-  // Se o botão do Google foi renderizado, clica nele
-  const gBtn = document.querySelector('#g-btn-wrap [role="button"], #g-btn-wrap div > div');
-  if (gBtn) {
-    gBtn.click();
-  } else {
-    // Fallback: tenta o prompt
+}, 8000);
+
+function loginGoogleGIS() {
+  if (gisReady && window.google && google.accounts && google.accounts.id) {
+    var gBtn = document.querySelector('#g-btn-wrap div[role="button"]') || 
+               document.querySelector('#g-btn-wrap div div') ||
+               document.querySelector('#g-btn-wrap div iframe');
+    if (gBtn) { gBtn.click(); return; }
     google.accounts.id.prompt();
+  } else {
+    window.location.href = '/auth/google';
   }
 }
 
@@ -100,20 +103,17 @@ async function handleGoogleCredential(response) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ credential: response.credential })
     });
-
     const data = await res.json();
-
     if (data.success) {
       showChatScreen(data.user);
     } else {
       alert('Erro no login: ' + (data.error || 'tente novamente'));
     }
   } catch (err) {
-    alert('Erro de conexão. Tente novamente.');
+    alert('Erro de conexao. Tente novamente.');
   }
 }
 
-// Inicializar GIS quando a página carregar
 document.addEventListener('DOMContentLoaded', initGoogleGIS);
 
 async function logout() {
