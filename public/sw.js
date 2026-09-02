@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kryno-ia-v6';
+const CACHE_NAME = 'kryno-ia-v7';
 const ASSETS = [
   '/',
   '/css/style.css',
