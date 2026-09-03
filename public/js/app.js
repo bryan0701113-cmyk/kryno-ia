@@ -53,21 +53,82 @@ let isGuest = false;
 
 // ===== HISTÓRICO GUEST (local, privado por navegador - LGPD) =====
 const GUEST_KEY = 'kryno_guest_chats';
+const GUEST_CHAT_ID_KEY = 'guest_chat_id';
 
-function guestLoadChats() {
-  try { return JSON.parse(localStorage.getItem(GUEST_KEY) || '[]'); }
+// Carrega sessões de guest (migra formato antigo automaticamente)
+function guestLoadSessions() {
+  let data;
+  try { data = JSON.parse(localStorage.getItem(GUEST_KEY) || '[]'); }
   catch { return []; }
+  if (!Array.isArray(data)) return [];
+
+  let migrated = false;
+  const sessions = data.map(item => {
+    if (item && Array.isArray(item.messages)) return item; // formato novo
+    // formato antigo (1 item por mensagem) -> vira uma sessão
+    migrated = true;
+    return {
+      id: item.id || Date.now(),
+      title: (item.user_message || '[imagem]').substring(0, 40),
+      messages: [
+        { role: 'user', content: item.user_message || '[imagem]' },
+        { role: 'assistant', content: item.bot_reply || '' }
+      ],
+      created_at: item.timestamp || new Date().toISOString(),
+      updated_at: item.timestamp || new Date().toISOString()
+    };
+  });
+  if (migrated) {
+    try { localStorage.setItem(GUEST_KEY, JSON.stringify(sessions.slice(-50))); } catch {}
+  }
+  return sessions;
 }
 
-function guestSaveChats(chats) {
-  try { localStorage.setItem(GUEST_KEY, JSON.stringify(chats.slice(-100))); }
+function guestSaveSessions(sessions) {
+  try { localStorage.setItem(GUEST_KEY, JSON.stringify(sessions.slice(-50))); }
   catch { /* storage cheio */ }
 }
 
-function guestAddChat(userMessage, botReply) {
-  const chats = guestLoadChats();
-  chats.push({ id: Date.now(), user_message: userMessage, bot_reply: botReply, timestamp: new Date().toISOString() });
-  guestSaveChats(chats);
+// Adiciona mensagem na SESSÃO ATUAL do guest (cria a sessão só se não existir)
+function guestAddMessage(userMessage, botReply) {
+  const sessions = guestLoadSessions();
+  let chatId = localStorage.getItem(GUEST_CHAT_ID_KEY);
+  let session = sessions.find(s => String(s.id) === String(chatId));
+
+  if (!session) {
+    session = {
+      id: Date.now(),
+      title: (userMessage || '[imagem]').substring(0, 40),
+      messages: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    sessions.push(session);
+    localStorage.setItem(GUEST_CHAT_ID_KEY, String(session.id));
+  }
+
+  session.messages.push({ role: 'user', content: userMessage || '[imagem]' });
+  if (botReply) session.messages.push({ role: 'assistant', content: botReply });
+  session.title = session.messages[0].content.substring(0, 40);
+  session.updated_at = new Date().toISOString();
+  guestSaveSessions(sessions);
+}
+
+// Abre uma sessão de guest no chat
+function guestOpenSession(id) {
+  const sessions = guestLoadSessions();
+  const session = sessions.find(s => String(s.id) === String(id));
+  if (!session) return;
+  localStorage.setItem(GUEST_CHAT_ID_KEY, String(session.id));
+  chatHistory = session.messages.map(m => ({ role: m.role, content: m.content }));
+  const container = document.getElementById('chat-messages');
+  container.innerHTML = '';
+  if (session.messages.length === 0) {
+    container.innerHTML = '<div class="welcome-msg"><div class="welcome-logo">⚡</div><h2>Kryno IA</h2><p>Nova sessão iniciada! Sobre o que vamos conversar agora?</p></div>';
+  } else {
+    session.messages.forEach(m => addMessage(m.role === 'user' ? 'user' : 'bot', m.content));
+  }
+  switchTab('chat');
 }
 
 function enterAsGuest() {
@@ -144,6 +205,8 @@ function closeSidebarOnMobile() {
 function novaSessao() {
   chatHistory = [];
   uploadedImage = null;
+  // Guest: limpa o chatId atual -> próxima mensagem abre uma sessão NOVA
+  if (isGuest) localStorage.removeItem(GUEST_CHAT_ID_KEY);
   const container = document.getElementById('chat-messages');
   container.innerHTML = `
     <div class="welcome-msg">
@@ -159,14 +222,17 @@ async function renderSidebarHistorico() {
   const list = document.getElementById('sidebar-hist-list');
   // GUEST: sidebar com histórico local
   if (isGuest) {
-    const msgs = guestLoadChats().slice().reverse().slice(0, 8);
-    if (msgs.length === 0) {
+    const sessions = guestLoadSessions()
+      .filter(s => s.messages && s.messages.length > 0) // só sessões com mensagens
+      .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0))
+      .slice(0, 8);
+    if (sessions.length === 0) {
       list.innerHTML = '<div class="sidebar-hist-empty">Nenhuma conversa ainda.</div>';
       return;
     }
-    list.innerHTML = msgs.map(m => `
-      <div class="sidebar-hist-item" title="${escapeHtml(m.user_message)}">
-        <div class="side-hist-msg">${escapeHtml(m.user_message.substring(0, 40))}${m.user_message.length > 40 ? '...' : ''}</div>
+    list.innerHTML = sessions.map(s => `
+      <div class="sidebar-hist-item" title="${escapeHtml(s.title || 'Conversa')}">
+        <span onclick="guestOpenSession('${s.id}')">${escapeHtml(s.title || 'Conversa').substring(0, 36)}</span>
       </div>
     `).join('');
     return;
@@ -237,7 +303,7 @@ async function sendMessage() {
     // Salvar no histórico local
     chatHistory.push({ role: 'user', content: message });
     chatHistory.push({ role: 'assistant', content: data.reply });
-    if (isGuest) guestAddChat(message || '[imagem]', data.reply);
+    if (isGuest) guestAddMessage(message || '[imagem]', data.reply);
     renderSidebarHistorico();
   } catch (err) {
     typingEl.remove();
