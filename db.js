@@ -112,6 +112,16 @@ async function initDB() {
       )
     `);
 
+    // Debug do login Google (cada passo pra descobrir onde falha)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS debug_events (
+        id SERIAL PRIMARY KEY,
+        event TEXT NOT NULL,
+        detail TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
     // Config global (Kill Switch etc)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS app_config (

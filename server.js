@@ -141,25 +141,45 @@ app.get('/auth/google', (req, res) => {
   res.redirect(authUrl.toString());
 });
 
+async function debugEvent(event, detail = '') {
+  console.log(`[OAUTH] ${event}${detail ? ': ' + String(detail).substring(0, 200) : ''}`);
+  try {
+    await ensureDB();
+    await pool.query('INSERT INTO debug_events (event, detail) VALUES ($1, $2)', [event, String(detail).substring(0, 500)]);
+  } catch {}
+}
+
 app.get('/auth/google/callback', async (req, res) => {
   const { code, state, error } = req.query;
-  console.log('Callback received:', { hasCode: !!code, hasState: !!state, error });
-  if (error) return res.redirect('/?error=login_failed&reason=' + encodeURIComponent(error));
-  if (!code) return res.redirect('/?error=login_failed&reason=no_code');
-  if (!state) return res.redirect('/?error=login_failed&reason=no_state');
+  debugEvent('callback_recebido', `code=${!!code} state=${!!state} error=${error || 'none'}`);
+  if (error) {
+    debugEvent('erro_google', error);
+    return res.redirect('/?error=login_failed&reason=' + encodeURIComponent(error));
+  }
+  if (!code) {
+    debugEvent('erro_sem_code', 'Google não devolveu o code');
+    return res.redirect('/?error=login_failed&reason=no_code');
+  }
+  if (!state) {
+    debugEvent('erro_sem_state', 'Google não devolveu o state');
+    return res.redirect('/?error=login_failed&reason=no_state');
+  }
   if (!verifyOAuthState(state)) {
-    console.error('State verification failed. State:', state ? state.substring(0,20)+'...' : 'null');
+    debugEvent('erro_state_invalido', 'JWT do state não passou na verificação');
     return res.redirect('/?error=login_failed&reason=invalid_state');
   }
-  console.log('State verified, exchanging code for token...');
+  debugEvent('state_ok', 'trocando code por token...');
 
   try {
-    console.log('Exchanging code for token with:', { clientId: GOOGLE_CLIENT_ID ? 'SET' : 'NOT SET', clientSecret: GOOGLE_CLIENT_SECRET ? 'SET' : 'NOT SET', redirectUri: GOOGLE_CALLBACK_URL });
+    debugEvent('trocando_token', `callbackUrl=${GOOGLE_CALLBACK_URL} clientId=${GOOGLE_CLIENT_ID ? 'set' : 'NOT SET'} secret=${GOOGLE_CLIENT_SECRET ? 'set' : 'NOT SET'}`);
     const tokenResponse = await axios.post('https://oauth2.googleapis.com/token', {
       code, client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET,
       redirect_uri: GOOGLE_CALLBACK_URL, grant_type: 'authorization_code'
+    }).catch(err => {
+      debugEvent('erro_troca_token', `status=${err.response?.status} data=${JSON.stringify(err.response?.data || err.message)}`);
+      throw err;
     });
-    console.log('Token exchange successful!');
+    debugEvent('token_ok', 'pegando perfil do usuário...');
     const accessToken = tokenResponse.data.access_token;
     const profileResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: { Authorization: `Bearer ${accessToken}` }
@@ -180,6 +200,7 @@ app.get('/auth/google/callback', async (req, res) => {
     );
     const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     const user = userResult.rows[0];
+    debugEvent('login_sucesso', email);
 
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, plan: user.plan || 'free' }, JWT_SECRET, { expiresIn: '7d' });
 
@@ -884,6 +905,17 @@ app.post('/api/god/login', (req, res) => {
 // Verificar se é god
 app.get('/api/god/check', godMiddleware, (req, res) => {
   res.json({ god: true });
+});
+
+// DEBUG DO LOGIN: ver exatamente onde falhou a última tentativa
+app.get('/api/god/debug', godMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const r = await pool.query('SELECT event, detail, created_at FROM debug_events ORDER BY created_at DESC LIMIT 40');
+    res.json({ events: r.rows });
+  } catch {
+    res.json({ events: [] });
+  }
 });
 
 // LOGS EM TEMPO REAL: o que todo mundo tá perguntando agora

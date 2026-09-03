@@ -28,6 +28,29 @@ async function initApp() {
 
   // Not logged in - show login screen
   document.getElementById('login-screen').classList.remove('hidden');
+
+  // Mostra erro do login Google se veio na URL (ex: /?error=login_failed&reason=...)
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('error')) {
+    const reason = params.get('reason') || '';
+    const mensagens = {
+      no_code: 'O Google não devolveu o código de login. Tenta de novo.',
+      no_state: 'A sessão de login expirou. Tenta de novo.',
+      invalid_state: 'A sessão de login expirou ou é inválida. Tenta de novo.',
+      access_denied: 'Você cancelou o login com o Google.',
+      mismatch_by_uri: 'Erro de configuração no servidor. Avise o Brayan.',
+      banned: 'Sua conta foi banida da Kryno. 😕',
+      login_failed: 'O login falhou: ' + (reason || 'erro desconhecido'),
+      google_not_configured: 'Login Google ainda não configurado no servidor. Avise o Brayan.'
+    };
+    const msg = mensagens[params.get('error')] || mensagens[reason] || ('Erro no login (' + params.get('error') + (reason ? ' / ' + reason : '') + ')');
+    const box = document.createElement('div');
+    box.style.cssText = 'margin:10px 20px;padding:12px;background:rgba(255,60,60,.15);border:1px solid #ff6b6b;border-radius:10px;color:#ff9999;text-align:center;font-size:14px;';
+    box.textContent = '⚠️ ' + msg;
+    const loginScreen = document.getElementById('login-screen');
+    loginScreen.insertBefore(box, loginScreen.firstChild);
+    try { history.replaceState(null, '', '/'); } catch {}
+  }
 }
 
 function showChatScreen(user = null) {
