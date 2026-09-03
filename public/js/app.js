@@ -810,9 +810,11 @@ function pedirCodigoAdmin() {
   }
 }
 
-// Se veio pela rota /admin ou já validou o código, abrir painel admin
+// Se veio pela rota /admin (easter egg), abrir o painel UMA vez e limpar a URL,
+// para não travar o app na tela de admin em usos futuros
 document.addEventListener('DOMContentLoaded', () => {
-  if (window.location.pathname === '/admin' || localStorage.getItem('isAdmin') === 'true') {
+  if (window.location.pathname === '/admin') {
+    try { history.replaceState(null, '', '/'); } catch {}
     abrirPainelAdmin();
   }
 });
