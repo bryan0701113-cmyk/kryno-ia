@@ -2,15 +2,30 @@
 
 // ===== INICIALIZAÇÃO =====
 async function initApp() {
+  // Se veio pela rota /admin (easter egg), abrir direto no painel admin
+  const isAdminBoot = window.location.pathname === '/admin';
+  if (isAdminBoot) {
+    try { history.replaceState(null, '', '/'); } catch {}
+  }
+
   // Check if user is already logged in (Google OAuth cookie)
   try {
     const res = await fetch('/auth/me');
     const data = await res.json();
     if (data.authenticated) {
       showChatScreen(data.user);
+      if (isAdminBoot) abrirPainelAdmin();
       return;
     }
   } catch {}
+
+  if (isAdminBoot) {
+    // Sem login (guest) mas veio validado pelo código admin: mostra o painel de qualquer forma
+    showChatScreen(null);
+    abrirPainelAdmin();
+    return;
+  }
+
   // Not logged in - show login screen
   document.getElementById('login-screen').classList.remove('hidden');
 }
@@ -96,9 +111,14 @@ async function logout() {
 // ===== TABS =====
 function switchTab(tab) {
   currentTab = tab;
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => {
+    p.classList.remove('active');
+    p.classList.add('hidden');
+  });
   document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
-  document.getElementById(`panel-${tab}`).classList.add('active');
+  const target = document.getElementById(`panel-${tab}`);
+  target.classList.remove('hidden');
+  target.classList.add('active');
   const tabBtn = document.getElementById(`tab-${tab}`);
   if (tabBtn) tabBtn.classList.add('active');
 
@@ -741,8 +761,17 @@ const ADMIN_MAX_TRIES = 3;        // tentativas antes de bloquear
 const ADMIN_LOCK_MS = 5 * 60 * 1000; // bloqueio de 5 minutos
 
 function abrirPainelAdmin() {
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('panel-admin').classList.add('active');
+  // Precisa ter entrado no app (chat-screen visível) antes de mostrar o painel
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('chat-screen').classList.remove('hidden');
+
+  document.querySelectorAll('.panel').forEach(p => {
+    p.classList.remove('active');
+    p.classList.add('hidden');
+  });
+  const painel = document.getElementById('panel-admin');
+  painel.classList.remove('hidden');
+  painel.classList.add('active');
   closeSidebarOnMobile();
 }
 
@@ -809,15 +838,6 @@ function pedirCodigoAdmin() {
     alert('Código incorreto. (' + tries + '/' + ADMIN_MAX_TRIES + ')');
   }
 }
-
-// Se veio pela rota /admin (easter egg), abrir o painel UMA vez e limpar a URL,
-// para não travar o app na tela de admin em usos futuros
-document.addEventListener('DOMContentLoaded', () => {
-  if (window.location.pathname === '/admin') {
-    try { history.replaceState(null, '', '/'); } catch {}
-    abrirPainelAdmin();
-  }
-});
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
