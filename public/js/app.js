@@ -733,7 +733,7 @@ function assinarPlano(plano) {
   alert('Assinatura do plano ' + (plano === 'pro' ? 'Kryno Pro 💎' : 'Kryno Premium 🥇') + ' em breve! Estamos configurando o pagamento.');
 }
 
-// ===== ACESSO SECRETO AO ADMIN (Ctrl+Alt+A) =====
+// ===== ACESSO SECRETO AO ADMIN (Ctrl+Alt+A ou 5 toques no logo) =====
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.altKey && e.key.toLowerCase() === 'a') {
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -741,6 +741,26 @@ document.addEventListener('keydown', (e) => {
     closeSidebarOnMobile();
   }
 });
+
+// Acesso secreto mobile: 5 toques rápidos no logo do sidebar
+(function () {
+  let taps = 0;
+  let timer = null;
+  document.addEventListener('click', (e) => {
+    const logo = e.target.closest('.logo-small, .sidebar-header');
+    if (!logo) return;
+    taps++;
+    clearTimeout(timer);
+    if (taps >= 5) {
+      taps = 0;
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('panel-admin').classList.add('active');
+      closeSidebarOnMobile();
+    } else {
+      timer = setTimeout(() => { taps = 0; }, 1200);
+    }
+  });
+})();
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
