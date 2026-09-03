@@ -80,6 +80,34 @@ async function initDB() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)`);
 
+    // ===== GOD MODE (Nível 3) =====
+    // Analytics: modelo usado e país de cada mensagem
+    try {
+      await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS model TEXT DEFAULT ''`);
+      await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS country TEXT DEFAULT ''`);
+    } catch {}
+
+    // Feature Flags: liberar função nova só pra X% dos usuários
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS feature_flags (
+        key TEXT PRIMARY KEY,
+        enabled INTEGER DEFAULT 0,
+        rollout INTEGER DEFAULT 100,
+        description TEXT DEFAULT '',
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Config global (Kill Switch etc)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS app_config (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        kill_switch INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    await pool.query(`INSERT INTO app_config (id, kill_switch) VALUES (1, 0) ON CONFLICT (id) DO NOTHING`);
+
     console.log('✅ Banco de dados Kryno (Postgres) inicializado');
   } catch (err) {
     console.error('❌ Erro ao inicializar banco:', err.message);

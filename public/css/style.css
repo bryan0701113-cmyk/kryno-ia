@@ -554,3 +554,99 @@ body {
 .sidebar-hist-item span:hover {
   color: #b388ff;
 }
+
+/* ===== GOD MODE (NÍVEL 3) ===== */
+.god-box { margin-top: 30px; padding-top: 20px; border-top: 2px solid #5b2da8; }
+.god-login { text-align: center; padding: 20px; background: #1a0f2e; border-radius: 12px; border: 1px solid #5b2da8; max-width: 400px; margin: 0 auto; }
+.god-login h2 { color: #ffd700; margin-bottom: 10px; }
+.god-login input {
+  width: 90%; padding: 12px; border-radius: 8px; border: 1px solid #5b2da8;
+  background: #0d0d14; color: #fff; margin: 8px 0; font-size: 15px; text-align: center;
+}
+.god-login button, .god-flag-form button, .god-plan-form button {
+  background: #7c3aed; color: #fff; border: none; padding: 12px 24px;
+  border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; margin-top: 8px;
+}
+.god-login button:hover { background: #6d28d9; }
+.god-panel-title { color: #ffd700; }
+.god-live-dot { display: inline-block; width: 10px; height: 10px; background: #22c55e; border-radius: 50%; animation: pulse 1.5s infinite; margin-left: 8px; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+.god-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.god-tab {
+  background: transparent; color: #b79ced; border: 1px solid #5b2da8; padding: 8px 14px;
+  border-radius: 20px; cursor: pointer; font-size: 13px;
+}
+.god-tab.active { background: #5b2da8; color: #fff; border-color: #8b5cf6; }
+
+.god-view { background: #131019; border: 1px solid #2a2040; border-radius: 12px; padding: 16px; }
+.god-subtitle { color: #b79ced; font-size: 14px; margin-bottom: 14px; }
+
+.god-logs-list { max-height: 420px; overflow-y: auto; }
+.god-log-item {
+  background: #1a1524; border-left: 3px solid #8b5cf6; border-radius: 6px;
+  padding: 10px 12px; margin-bottom: 8px; font-size: 13px;
+}
+.god-log-item .log-user { color: #ffd700; font-weight: bold; font-size: 12px; }
+.god-log-item .log-msg { color: #eee; margin: 3px 0; }
+.god-log-item .log-reply { color: #888; font-size: 12px; }
+.god-log-item .log-time { color: #666; font-size: 11px; }
+
+.god-users-list { max-height: 420px; overflow-y: auto; }
+.god-user-item {
+  display: flex; align-items: center; gap: 10px; background: #1a1524;
+  padding: 10px 12px; border-radius: 8px; margin-bottom: 8px; flex-wrap: wrap;
+}
+.god-user-item .g-info { flex: 1; min-width: 140px; }
+.god-user-item .g-name { color: #fff; font-size: 14px; font-weight: bold; }
+.god-user-item .g-email { color: #888; font-size: 12px; }
+.g-role-select {
+  background: #0d0d14; color: #fff; border: 1px solid #5b2da8; border-radius: 6px;
+  padding: 6px 8px; font-size: 12px;
+}
+.g-imp-btn {
+  background: rgba(139,92,246,.2); color: #b79ced; border: 1px solid #5b2da8;
+  padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;
+}
+.g-role-badge { font-size: 11px; padding: 3px 8px; border-radius: 10px; background: #2a2040; color: #ffd700; }
+
+.god-stat-row { margin-bottom: 12px; }
+.god-online { color: #22c55e; font-size: 14px; font-weight: bold; }
+.god-chart { margin-bottom: 18px; }
+.god-chart h4 { color: #b79ced; font-size: 13px; margin-bottom: 8px; }
+.god-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.god-bar-label { width: 110px; font-size: 12px; color: #aaa; text-align: right; }
+.god-bar { height: 14px; background: linear-gradient(90deg, #5b2da8, #8b5cf6); border-radius: 4px; min-width: 4px; }
+.god-bar-val { font-size: 12px; color: #ffd700; }
+
+.god-flag-form, .god-plan-form { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.god-flag-form input, .god-plan-form input, .god-plan-form select {
+  background: #0d0d14; color: #fff; border: 1px solid #5b2da8; border-radius: 8px;
+  padding: 10px 12px; font-size: 13px; flex: 1; min-width: 140px;
+}
+.god-flag-item {
+  display: flex; align-items: center; gap: 10px; background: #1a1524; padding: 10px 12px;
+  border-radius: 8px; margin-bottom: 8px; font-size: 13px; color: #ddd;
+}
+.god-flag-item .flag-key { font-family: monospace; color: #ffd700; flex: 1; }
+.god-flag-item .flag-roll { color: #b79ced; font-size: 12px; }
+.god-flag-toggle { cursor: pointer; background: #333; color: #fff; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; }
+.god-flag-toggle.on { background: #22c55e; }
+
+.god-kill-wrap { text-align: center; padding: 24px; }
+.god-kill-status { font-size: 22px; font-weight: bold; margin-bottom: 16px; color: #22c55e; }
+.god-kill-status.on { color: #ff4444; animation: pulse 1s infinite; }
+.god-kill-btn {
+  background: #ff4444; color: #fff; border: none; padding: 16px 32px; border-radius: 10px;
+  cursor: pointer; font-size: 16px; font-weight: bold;
+}
+.god-kill-btn.off { background: #22c55e; }
+
+.impersonate-banner {
+  background: #7c1c1c; color: #fff; padding: 10px 16px; text-align: center;
+  font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 12px;
+}
+.impersonate-banner button {
+  background: #fff; color: #7c1c1c; border: none; padding: 5px 14px;
+  border-radius: 6px; cursor: pointer; font-weight: bold;
+}

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kryno IA 🔥 - Sua IA Completa</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
-  <link rel="stylesheet" href="/css/style.css?v=16">
+  <link rel="stylesheet" href="/css/style.css?v=17">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#a855f7">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -40,6 +40,10 @@
 
     <!-- TELA PRINCIPAL - CHAT -->
     <div id="chat-screen" class="screen hidden">
+          <div id="impersonate-banner" class="impersonate-banner hidden">
+            👁️ Você está vendo como <b id="impersonate-name"></b> — modo teste do dono
+            <button onclick="sairImpersonate()">Sair</button>
+          </div>
       <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
       <!-- SIDEBAR -->
@@ -161,6 +165,86 @@
               <div class="admin-stats" id="admin-stats"></div>
               <h3>Usuários Cadastrados</h3>
               <div id="admin-users-list" class="admin-users-list"></div>
+
+              <!-- ===== GOD MODE (NÍVEL 3) ===== -->
+              <div class="god-box">
+                <div class="god-login" id="god-login">
+                  <h2>👑 God Mode</h2>
+                  <p class="hint">Nível 3 — só o dono. Digite o PIN de verificação:</p>
+                  <input type="password" id="god-pin" placeholder="PIN do dono" onkeydown="if(event.key==='Enter')loginGod()">
+                  <button onclick="loginGod()">👑 Entrar no God Mode</button>
+                </div>
+
+                <div id="god-panel" class="hidden">
+                  <h2>👑 God Mode <span class="god-live-dot" title="logs ao vivo"></span></h2>
+
+                  <div class="god-tabs">
+                    <button class="god-tab active" id="godtab-logs" onclick="godTab('logs')">📡 Logs ao Vivo</button>
+                    <button class="god-tab" id="godtab-users" onclick="godTab('users')">👥 Usuários</button>
+                    <button class="god-tab" id="godtab-stats" onclick="godTab('stats')">📊 Stats</button>
+                    <button class="god-tab" id="godtab-flags" onclick="godTab('flags')">🚩 Flags</button>
+                    <button class="god-tab" id="godtab-plans" onclick="godTab('plans')">💎 Planos</button>
+                    <button class="god-tab" id="godtab-kill" onclick="godTab('kill')">🔴 Kill Switch</button>
+                  </div>
+
+                  <!-- LOGS AO VIVO -->
+                  <div id="godview-logs" class="god-view">
+                    <div class="god-subtitle">O que todo mundo tá perguntando agora <span class="hint">(atualiza a cada 4s)</span></div>
+                    <div id="god-logs-list" class="god-logs-list"></div>
+                  </div>
+
+                  <!-- USUÁRIOS: Role Manager + Impersonate -->
+                  <div id="godview-users" class="god-view hidden">
+                    <div class="god-subtitle">Role Manager — defina quem é Moderador, Admin ou God</div>
+                    <div id="god-users-list" class="god-users-list"></div>
+                  </div>
+
+                  <!-- STATS HACKER -->
+                  <div id="godview-stats" class="god-view hidden">
+                    <div class="god-subtitle">Estatísticas hacker</div>
+                    <div class="god-stat-row"><span class="god-online" id="god-online">👥 0 online agora</span></div>
+                    <div class="god-chart" id="god-chart-hour"></div>
+                    <div class="god-chart" id="god-chart-country"></div>
+                    <div class="god-chart" id="god-chart-model"></div>
+                  </div>
+
+                  <!-- FEATURE FLAGS -->
+                  <div id="godview-flags" class="god-view hidden">
+                    <div class="god-subtitle">Feature Flags — libere função nova só pra X% dos usuários</div>
+                    <div class="god-flag-form">
+                      <input type="text" id="flag-key" placeholder="Nome da flag (ex: imagina_v2)">
+                      <input type="number" id="flag-rollout" placeholder="% rollout (ex: 10)" min="0" max="100">
+                      <button onclick="criarFlag()">🚩 Criar/Atualizar</button>
+                    </div>
+                    <div id="god-flags-list"></div>
+                  </div>
+
+                  <!-- PLANOS POR EMAIL -->
+                  <div id="godview-plans" class="god-view hidden">
+                    <div class="god-subtitle">Liberar Kryno Pro / Premium por email da conta Google</div>
+                    <div class="god-plan-form">
+                      <input type="email" id="plan-email" placeholder="Email da conta Google do usuário">
+                      <select id="plan-select">
+                        <option value="pro">💎 Kryno Pro</option>
+                        <option value="premium">🥇 Kryno Premium</option>
+                        <option value="free">↩️ Voltar pra grátis</option>
+                      </select>
+                      <button onclick="liberarPlano()">🚀 Enviar</button>
+                    </div>
+                    <p class="hint">Ao enviar, vai pedir o PIN de verificação pra confirmar que é o dono.</p>
+                  </div>
+
+                  <!-- KILL SWITCH -->
+                  <div id="godview-kill" class="god-view hidden">
+                    <div class="god-subtitle">Botão de pânico — desliga a IA pra todo mundo</div>
+                    <div class="god-kill-wrap">
+                      <div id="god-kill-status" class="god-kill-status">🟢 IA LIGADA</div>
+                      <button class="god-kill-btn" id="god-kill-btn" onclick="toggleKillSwitch()">🔴 ATIVAR KILL SWITCH</button>
+                    </div>
+                    <p class="hint">Se a Kryno estiver sendo atacada, ative isso. Ela responde só "em manutenção" até você desligar.</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -228,7 +312,7 @@
         </div>
       </div>
   </div>
-  <script src="/js/app.js?v=16"></script>
+  <script src="/js/app.js?v=17"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

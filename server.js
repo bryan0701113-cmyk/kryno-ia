@@ -94,6 +94,35 @@ function adminMiddleware(req, res, next) {
   }
 }
 
+// ===== GOD MODE (NÍVEL 3 - SÓ O DONO) =====
+const GOD_PIN = process.env.GOD_PIN || '2012';
+
+function godMiddleware(req, res, next) {
+  const token = req.cookies.token || req.headers.authorization?.replace('Bearer ');
+  if (!token) return res.status(401).json({ error: 'Não autenticado' });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.role !== 'god') return res.status(403).json({ error: 'Acesso negado' });
+    req.user = decoded;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Token inválido' });
+  }
+}
+
+// Helper: verificar feature flag com rollout % (hash simples do userId)
+async function isFeatureEnabled(key, userId) {
+  try {
+    const r = await pool.query('SELECT enabled, rollout FROM feature_flags WHERE key = $1', [key]);
+    if (r.rows.length === 0) return true; // sem flag = liberado
+    const flag = r.rows[0];
+    if (!flag.enabled) return false;
+    if ((flag.rollout || 100) >= 100) return true;
+    const h = String(userId).split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
+    return (Math.abs(h) % 100) < flag.rollout;
+  } catch { return true; }
+}
+
 // ===== ROTAS DE AUTENTICAÇÃO (STATELESS) =====
 app.get('/auth/google', (req, res) => {
   if (!GOOGLE_ENABLED) return res.redirect('/?error=google_not_configured');
@@ -284,6 +313,15 @@ app.post('/api/chat', async (req, res) => {
     } catch {}
   }
 
+  // KILL SWITCH: se o dono desligou a IA, responde isso pra todo mundo
+  try {
+    await ensureDB();
+    const ks = await pool.query('SELECT kill_switch FROM app_config WHERE id = 1');
+    if (ks.rows.length > 0 && ks.rows[0].kill_switch == 1) {
+      return res.json({ reply: '🔴 A Kryno está temporariamente desligada para manutenção de emergência. Volta em instantes! 🙏' });
+    }
+  } catch {}
+
   if (!groq) {
     return res.json({
       reply: 'Olá! Sou a Kryno IA 🔥\n\nEstou quase pronta! Para funcionar 100%, preciso que você configure a GROQ_API_KEY nas variáveis de ambiente na Vercel.\n\nMas já posso te ajudar com várias coisas! Me diz o que você precisa. 🤖'
@@ -342,9 +380,10 @@ REGRAS DE FORMATAÇÃO (muito importante):
     if (userId !== 'anonimo') {
       try {
         await ensureDB();
+        const country = (req.headers['x-vercel-ip-country'] || req.headers['cf-ipcountry'] || '').toUpperCase();
         await pool.query(
-          `INSERT INTO messages (user_id, user_email, user_message, bot_reply, timestamp) VALUES ($1, $2, $3, $4, NOW())`,
-          [userId, userEmail, message || '[imagem]', reply]
+          `INSERT INTO messages (user_id, user_email, user_message, bot_reply, timestamp, model, country) VALUES ($1, $2, $3, $4, NOW(), $5, $6)`,
+          [userId, userEmail, message || '[imagem]', reply, GROQ_CHAT_MODEL, country]
         );
       } catch (dbErr) {
         console.log('⚠️ DB não disponível, histórico não salvo');
@@ -727,6 +766,169 @@ app.get('/admin', (req, res) => {
 });
 
 // ===== ROTA PRINCIPAL (SPA) =====
+// ===== ROTAS GOD MODE (NÍVEL 3) =====
+
+// Login God (PIN do dono)
+app.post('/api/god/login', (req, res) => {
+  const { pin } = req.body;
+  if (pin === GOD_PIN) {
+    const token = jwt.sign({ role: 'god', email: 'god@kryno' }, JWT_SECRET, { expiresIn: '6h' });
+    res.cookie('token', token, { httpOnly: true, maxAge: 6 * 60 * 60 * 1000 });
+    res.json({ success: true, token });
+  } else {
+    res.status(401).json({ error: 'PIN do dono incorreto' });
+  }
+});
+
+// Verificar se é god
+app.get('/api/god/check', godMiddleware, (req, res) => {
+  res.json({ god: true });
+});
+
+// LOGS EM TEMPO REAL: o que todo mundo tá perguntando agora
+app.get('/api/god/logs', godMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const result = await pool.query(`
+      SELECT m.user_message, m.bot_reply, m.timestamp, m.country,
+             COALESCE(u.name, m.user_email) as user_name, m.user_email
+      FROM messages m
+      LEFT JOIN users u ON String(u.id) = m.user_id
+      ORDER BY m.timestamp DESC
+      LIMIT 50
+    `);
+    res.json({ logs: result.rows });
+  } catch {
+    res.json({ logs: [] });
+  }
+});
+
+// STATS HACKER: uso por hora (24h), país, modelo mais usado
+app.get('/api/god/stats', godMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const byHour = (await pool.query(`
+      SELECT EXTRACT(HOUR FROM timestamp) as hour, COUNT(*) as count
+      FROM messages WHERE timestamp >= NOW() - INTERVAL '24 hours'
+      GROUP BY hour ORDER BY hour
+    `)).rows;
+    const byCountry = (await pool.query(`
+      SELECT CASE WHEN country = '' OR country IS NULL THEN 'Desconhecido' ELSE country END as country,
+             COUNT(*) as count
+      FROM messages GROUP BY country ORDER BY count DESC LIMIT 10
+    `)).rows;
+    const byModel = (await pool.query(`
+      SELECT CASE WHEN model = '' OR model IS NULL THEN 'default' ELSE model END as model,
+             COUNT(*) as count
+      FROM messages GROUP BY model ORDER BY count DESC LIMIT 5
+    `)).rows;
+    const onlineNow = (await pool.query(`
+      SELECT COUNT(DISTINCT user_id) as count FROM messages
+      WHERE timestamp >= NOW() - INTERVAL '5 minutes' AND user_id != 'anonimo'
+    `)).rows[0].count;
+    res.json({ byHour, byCountry, byModel, onlineNow });
+  } catch {
+    res.json({ byHour: [], byCountry: [], byModel: [], onlineNow: 0 });
+  }
+});
+
+// ROLE MANAGER: definir quem é user/mod/admin/god
+app.post('/api/god/role', godMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const { email, role } = req.body;
+    if (!['user', 'mod', 'admin', 'god'].includes(role)) {
+      return res.status(400).json({ error: 'Role inválida (use user, mod, admin ou god)' });
+    }
+    const r = await pool.query('UPDATE users SET role = $1 WHERE email = $2 RETURNING id, email, role', [role, email]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
+    res.json({ success: true, user: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// IMPERSONATE: entrar como outro usuário (sem ver senha)
+app.post('/api/god/impersonate', godMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const { userId } = req.body;
+    const r = await pool.query('SELECT id, email, name, picture, role, plan FROM users WHERE id = $1', [userId]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Usuário não encontrado' });
+    const u = r.rows[0];
+    const token = jwt.sign({ id: u.id, email: u.email, name: u.name, role: u.role, plan: u.plan || 'free' }, JWT_SECRET, { expiresIn: '30m' });
+    res.json({ success: true, token, user: { id: u.id, email: u.email, name: u.name, picture: u.picture } });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// FEATURE FLAGS: listar e criar/editar
+app.get('/api/god/flags', godMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const r = await pool.query('SELECT * FROM feature_flags ORDER BY updated_at DESC');
+    res.json({ flags: r.rows });
+  } catch {
+    res.json({ flags: [] });
+  }
+});
+
+app.post('/api/god/flag', godMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const { key, enabled, rollout, description } = req.body;
+    if (!key) return res.status(400).json({ error: 'Chave obrigatória' });
+    await pool.query(`
+      INSERT INTO feature_flags (key, enabled, rollout, description, updated_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (key) DO UPDATE SET enabled = $2, rollout = $3, description = $4, updated_at = NOW()
+    `, [key, enabled ? 1 : 0, Math.min(100, Math.max(0, parseInt(rollout) || 100)), description || '']);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// KILL SWITCH: botão de pânico
+app.get('/api/god/killswitch', godMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const r = await pool.query('SELECT kill_switch FROM app_config WHERE id = 1');
+    res.json({ on: r.rows.length > 0 && r.rows[0].kill_switch == 1 });
+  } catch {
+    res.json({ on: false });
+  }
+});
+
+app.post('/api/god/killswitch', godMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const { on } = req.body;
+    await pool.query('UPDATE app_config SET kill_switch = $1, updated_at = NOW() WHERE id = 1', [on ? 1 : 0]);
+    console.log(`${on ? '🔴 KILL SWITCH ATIVADO' : '🟢 Kill switch desligado'} — IA ${on ? 'DESLIGADA' : 'ligada'}`);
+    res.json({ success: true, on: !!on });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// LIBERAR PLANOS (Kryno Pro / Premium) por email — exige PIN do dono pra confirmar
+app.post('/api/god/plan', godMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const { email, plan, pin } = req.body;
+    if (pin !== GOD_PIN) return res.status(401).json({ error: 'PIN de verificação incorreto' });
+    if (!['free', 'pro', 'premium'].includes(plan)) return res.status(400).json({ error: 'Plano inválido' });
+    if (!email || !/@/.test(email)) return res.status(400).json({ error: 'Email inválido' });
+    const r = await pool.query('UPDATE users SET plan = $1 WHERE email = $2 RETURNING id, email, plan', [plan, email]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Nenhuma conta Google com esse email' });
+    res.json({ success: true, user: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) return;
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

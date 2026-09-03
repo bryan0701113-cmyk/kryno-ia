@@ -909,3 +909,280 @@ function pedirCodigoAdmin() {
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
 });
+
+// ===== GOD MODE (NÍVEL 3 - SÓ O DONO) =====
+let godTabAtual = 'logs';
+let godLogsTimer = null;
+
+async function loginGod() {
+  const pin = document.getElementById('god-pin').value;
+  try {
+    const res = await fetch('/api/god/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin })
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('god-login').classList.add('hidden');
+      document.getElementById('god-panel').classList.remove('hidden');
+      iniciarGod();
+    } else {
+      alert(data.error || 'PIN incorreto');
+    }
+  } catch {
+    alert('Erro de conexão');
+  }
+}
+
+function godTab(tab) {
+  godTabAtual = tab;
+  document.querySelectorAll('.god-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('godtab-' + tab).classList.add('active');
+  document.querySelectorAll('.god-view').forEach(v => v.classList.add('hidden'));
+  document.getElementById('godview-' + tab).classList.remove('hidden');
+
+  clearInterval(godLogsTimer);
+  if (tab === 'logs') { carregarLogsGod(); godLogsTimer = setInterval(carregarLogsGod, 4000); }
+  if (tab === 'users') carregarUsersGod();
+  if (tab === 'stats') carregarStatsGod();
+  if (tab === 'flags') carregarFlagsGod();
+  if (tab === 'kill') carregarKillSwitch();
+}
+
+function iniciarGod() {
+  godTab('logs');
+}
+
+// LOGS AO VIVO
+async function carregarLogsGod() {
+  try {
+    const res = await fetch('/api/god/logs');
+    const data = await res.json();
+    const list = document.getElementById('god-logs-list');
+    list.innerHTML = data.logs.map(l => `
+      <div class="god-log-item">
+        <div class="log-user">👤 ${escapeHtml(l.user_name || l.user_email || 'Anônimo')} <span style="color:#666">· ${l.country || '—'} · ${new Date(l.timestamp).toLocaleTimeString('pt-BR')}</span></div>
+        <div class="log-msg">💬 ${escapeHtml((l.user_message || '').substring(0, 120))}</div>
+        <div class="log-reply">⚡ ${escapeHtml((l.bot_reply || '').substring(0, 100))}...</div>
+      </div>
+    `).join('') || '<div class="sidebar-hist-empty">Nada ainda. Manda mensagem aí!</div>';
+  } catch {}
+}
+
+// USUÁRIOS: Role Manager + Impersonate
+async function carregarUsersGod() {
+  try {
+    const res = await fetch('/api/admin/users');
+    const data = await res.json();
+    const list = document.getElementById('god-users-list');
+    list.innerHTML = data.users.map(u => `
+      <div class="god-user-item">
+        <div class="g-info">
+          <div class="g-name">${escapeHtml(u.name || 'Sem nome')} <span class="g-role-badge">${u.role || 'user'}</span></div>
+          <div class="g-email">${escapeHtml(u.email)}</div>
+        </div>
+        <select class="g-role-select" onchange="definirRole('${escapeHtml(u.email)}', this.value)">
+          <option value="user" ${u.role === 'user' ? 'selected' : ''}>Usuário</option>
+          <option value="mod" ${u.role === 'mod' ? 'selected' : ''}>Moderador</option>
+          <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+          <option value="god" ${u.role === 'god' ? 'selected' : ''}>God</option>
+        </select>
+        <button class="g-imp-btn" onclick="impersonateUser(${u.id}, '${escapeHtml(u.name || u.email)}')">👁️ Entrar como</button>
+      </div>
+    `).join('');
+  } catch {}
+}
+
+async function definirRole(email, role) {
+  const res = await fetch('/api/god/role', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, role })
+  });
+  const data = await res.json();
+  if (data.success) {
+    alert('✅ ' + email + ' agora é ' + role.toUpperCase());
+  } else {
+    alert(data.error || 'Erro');
+    carregarUsersGod();
+  }
+}
+
+// IMPERSONATE: ver o app como o usuário vê (pra achar bug)
+async function impersonateUser(userId, name) {
+  if (!confirm('Entrar no app como ' + name + ' pra ver o bug dele? (não vê a senha dele, só o app como ele vê)')) return;
+  try {
+    const res = await fetch('/api/god/impersonate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId })
+    });
+    const data = await res.json();
+    if (data.success) {
+      // Guarda o token god pra poder voltar
+      document.cookie = 'token=' + encodeURIComponent(data.token) + ';path=/;max-age=1800';
+      localStorage.setItem('kryno_god_restore', '1');
+      sessionStorage.setItem('kryno_impersonating', name);
+      location.reload();
+    } else {
+      alert(data.error || 'Erro');
+    }
+  } catch {
+    alert('Erro de conexão');
+  }
+}
+
+function sairImpersonate() {
+  localStorage.removeItem('kryno_god_restore');
+  sessionStorage.removeItem('kryno_impersonating');
+  // volta pro admin pelo fluxo secreto
+  window.location.href = '/admin';
+}
+
+// STATS HACKER (gráficos de barra)
+async function carregarStatsGod() {
+  try {
+    const res = await fetch('/api/god/stats');
+    const s = await res.json();
+    document.getElementById('god-online').textContent = '👥 ' + (s.onlineNow || 0) + ' online agora';
+
+    const maxHour = Math.max(...s.byHour.map(h => h.count), 1);
+    const maxCountry = Math.max(...s.byCountry.map(c => c.count), 1);
+    const maxModel = Math.max(...s.byModel.map(m => m.count), 1);
+
+    document.getElementById('god-chart-hour').innerHTML =
+      '<h4>⏰ Uso por hora (últimas 24h)</h4>' +
+      s.byHour.map(h =>
+        `<div class="god-bar-row"><div class="god-bar-label">${h.hour}h</div><div class="god-bar" style="width:${(h.count / maxHour) * 60}%"></div><div class="god-bar-val">${h.count}</div></div>`
+      ).join('') || '<div class="sidebar-hist-empty">Sem dados ainda</div>';
+
+    document.getElementById('god-chart-country').innerHTML =
+      '<h4>🌍 Uso por país</h4>' +
+      s.byCountry.map(c =>
+        `<div class="god-bar-row"><div class="god-bar-label">${escapeHtml(String(c.country))}</div><div class="god-bar" style="width:${(c.count / maxCountry) * 60}%"></div><div class="god-bar-val">${c.count}</div></div>`
+      ).join('');
+
+    document.getElementById('god-chart-model').innerHTML =
+      '<h4>🤖 Modelo mais usado</h4>' +
+      s.byModel.map(m =>
+        `<div class="god-bar-row"><div class="god-bar-label">${escapeHtml(String(m.model))}</div><div class="god-bar" style="width:${(m.count / maxModel) * 60}%"></div><div class="god-bar-val">${m.count}</div></div>`
+      ).join('');
+  } catch {}
+}
+
+// FEATURE FLAGS
+async function carregarFlagsGod() {
+  try {
+    const res = await fetch('/api/god/flags');
+    const data = await res.json();
+    const list = document.getElementById('god-flags-list');
+    list.innerHTML = data.flags.map(f => `
+      <div class="god-flag-item">
+        <span class="flag-key">🚩 ${escapeHtml(f.key)}</span>
+        <span class="flag-roll">${f.rollout}% dos usuários</span>
+        <button class="god-flag-toggle ${f.enabled ? 'on' : ''}" onclick="alternarFlag('${escapeHtml(f.key)}', ${f.enabled ? 0 : 1}, ${f.rollout})">${f.enabled ? 'LIGADA' : 'DESLIGADA'}</button>
+      </div>
+    `).join('') || '<div class="sidebar-hist-empty">Nenhuma flag ainda. Cria uma aí em cima!</div>';
+  } catch {}
+}
+
+async function criarFlag() {
+  const key = document.getElementById('flag-key').value.trim();
+  const rollout = parseInt(document.getElementById('flag-rollout').value) || 100;
+  if (!key) return alert('Digita o nome da flag');
+  const res = await fetch('/api/god/flag', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, enabled: 1, rollout })
+  });
+  if (res.ok) {
+    document.getElementById('flag-key').value = '';
+    document.getElementById('flag-rollout').value = '';
+    carregarFlagsGod();
+  } else alert('Erro ao criar flag');
+}
+
+async function alternarFlag(key, enabled, rollout) {
+  await fetch('/api/god/flag', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, enabled, rollout })
+  });
+  carregarFlagsGod();
+}
+
+// KILL SWITCH
+async function carregarKillSwitch() {
+  try {
+    const res = await fetch('/api/god/killswitch');
+    const data = await res.json();
+    atualizarKillUI(data.on);
+  } catch {}
+}
+
+function atualizarKillUI(on) {
+  const status = document.getElementById('god-kill-status');
+  const btn = document.getElementById('god-kill-btn');
+  if (on) {
+    status.textContent = '🔴 IA DESLIGADA';
+    status.classList.add('on');
+    btn.textContent = '🟢 RELIGAR A KRYNO';
+    btn.classList.add('off');
+  } else {
+    status.textContent = '🟢 IA LIGADA';
+    status.classList.remove('on');
+    btn.textContent = '🔴 ATIVAR KILL SWITCH';
+    btn.classList.remove('off');
+  }
+}
+
+async function toggleKillSwitch() {
+  const res = await fetch('/api/god/killswitch');
+  const data = await res.json();
+  const novo = !data.on;
+  if (!confirm(novo ? '⚠️ DESLIGAR a IA pra TODO MUNDO agora?' : 'Religar a Kryno pra todo mundo?')) return;
+  const r = await fetch('/api/god/killswitch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ on: novo })
+  });
+  const d = await r.json();
+  if (d.success) atualizarKillUI(novo);
+}
+
+// LIBERAR PLANOS POR EMAIL (com PIN do dono)
+async function liberarPlano() {
+  const email = document.getElementById('plan-email').value.trim();
+  const plan = document.getElementById('plan-select').value;
+  if (!email || !/@/.test(email)) return alert('Digita um email de conta Google válido');
+
+  const pin = prompt('🔐 Confirmar que é o dono:\nDigite o PIN de verificação:');
+  if (pin === null) return;
+
+  const res = await fetch('/api/god/plan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, plan, pin })
+  });
+  const data = await res.json();
+  if (data.success) {
+    const nomePlano = plan === 'pro' ? '💎 Kryno Pro' : plan === 'premium' ? '🥇 Kryno Premium' : 'Grátis';
+    alert('✅ ' + nomePlano + ' liberado pra ' + email + '!');
+    document.getElementById('plan-email').value = '';
+  } else {
+    alert(data.error || 'Erro');
+  }
+}
+
+// Se voltou do impersonate, mostra o banner vermelho
+document.addEventListener('DOMContentLoaded', () => {
+  const impName = sessionStorage.getItem('kryno_impersonating');
+  if (impName) {
+    const banner = document.getElementById('impersonate-banner');
+    if (banner) {
+      banner.classList.remove('hidden');
+      document.getElementById('impersonate-name').textContent = impName;
+    }
+  }
+});
