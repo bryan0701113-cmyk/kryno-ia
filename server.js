@@ -332,14 +332,18 @@ REGRAS DE FORMATAÇÃO (muito importante):
 
     const reply = response.choices[0].message.content;
 
-    try {
-      await ensureDB();
-      await pool.query(
-        `INSERT INTO messages (user_id, user_email, user_message, bot_reply, timestamp) VALUES ($1, $2, $3, $4, NOW())`,
-        [userId, userEmail, message || '[imagem]', reply]
-      );
-    } catch (dbErr) {
-      console.log('⚠️ DB não disponível, histórico não salvo');
+    // PRIVACIDADE (LGPD): guests NUNCA são salvos no backend.
+    // Histórico de guest fica apenas no localStorage do navegador dele.
+    if (userId !== 'anonimo') {
+      try {
+        await ensureDB();
+        await pool.query(
+          `INSERT INTO messages (user_id, user_email, user_message, bot_reply, timestamp) VALUES ($1, $2, $3, $4, NOW())`,
+          [userId, userEmail, message || '[imagem]', reply]
+        );
+      } catch (dbErr) {
+        console.log('⚠️ DB não disponível, histórico não salvo');
+      }
     }
 
     res.json({ reply });
@@ -397,15 +401,17 @@ app.post('/api/transcrever', upload.single('audio'), async (req, res) => {
 // ===== HISTÓRICO =====
 app.get('/api/historico', async (req, res) => {
   try {
-    await ensureDB();
     const token = req.cookies.token || req.headers.authorization?.replace('Bearer ');
-    let userId = 'anonimo';
+    let userId = null;
     if (token) {
       try {
         const decoded = jwt.verify(token, JWT_SECRET);
         userId = String(decoded.id);
       } catch {}
     }
+    // PRIVACIDADE: guest não tem histórico no servidor (fica no localStorage dele)
+    if (!userId) return res.json({ messages: [] });
+    await ensureDB();
     const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 50', [userId]);
     res.json({ messages: result.rows });
   } catch {
@@ -416,15 +422,17 @@ app.get('/api/historico', async (req, res) => {
 app.get('/api/historico/buscar', async (req, res) => {
   const { q } = req.query;
   try {
-    await ensureDB();
     const token = req.cookies.token || req.headers.authorization?.replace('Bearer ');
-    let userId = 'anonimo';
+    let userId = null;
     if (token) {
       try {
         const decoded = jwt.verify(token, JWT_SECRET);
         userId = String(decoded.id);
       } catch {}
     }
+    // PRIVACIDADE: guest não tem histórico no servidor
+    if (!userId) return res.json({ messages: [] });
+    await ensureDB();
     const result = await pool.query(
       'SELECT * FROM messages WHERE user_id = $1 AND (user_message ILIKE $2 OR bot_reply ILIKE $2) ORDER BY timestamp DESC',
       [userId, `%${q}%`]
@@ -437,15 +445,16 @@ app.get('/api/historico/buscar', async (req, res) => {
 
 app.delete('/api/historico', async (req, res) => {
   try {
-    await ensureDB();
     const token = req.cookies.token || req.headers.authorization?.replace('Bearer ');
-    let userId = 'anonimo';
+    let userId = null;
     if (token) {
       try {
         const decoded = jwt.verify(token, JWT_SECRET);
         userId = String(decoded.id);
       } catch {}
     }
+    if (!userId) return res.json({ success: true }); // guest: histórico é local, nada a apagar no servidor
+    await ensureDB();
     await pool.query('DELETE FROM messages WHERE user_id = $1', [userId]);
     res.json({ success: true });
   } catch {
@@ -474,15 +483,21 @@ app.delete('/api/historico/:id', async (req, res) => {
 
 app.get('/api/historico/exportar', async (req, res) => {
   try {
-    await ensureDB();
     const token = req.cookies.token || req.headers.authorization?.replace('Bearer ');
-    let userId = 'anonimo';
+    let userId = null;
     if (token) {
       try {
         const decoded = jwt.verify(token, JWT_SECRET);
         userId = String(decoded.id);
       } catch {}
     }
+    // PRIVACIDADE: guest não tem histórico no servidor
+    if (!userId) {
+      res.setHeader('Content-Type', 'text/plain');
+      res.setHeader('Content-Disposition', 'attachment; filename="historico-kryno.txt"');
+      return res.send('=== HISTÓRICO KRYNO IA ===\n\nModo sem conta: seu histórico é local e não pode ser exportado pelo servidor.\n');
+    }
+    await ensureDB();
     const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp ASC', [userId]);
     let txt = '=== HISTÓRICO KRYNO IA ===\n\n';
     result.rows.forEach(m => {
@@ -498,15 +513,16 @@ app.get('/api/historico/exportar', async (req, res) => {
 
 app.get('/api/historico/ultimas', async (req, res) => {
   try {
-    await ensureDB();
     const token = req.cookies.token || req.headers.authorization?.replace('Bearer ');
-    let userId = 'anonimo';
+    let userId = null;
     if (token) {
       try {
         const decoded = jwt.verify(token, JWT_SECRET);
         userId = String(decoded.id);
       } catch {}
     }
+    if (!userId) return res.json({ messages: [], count: 0 }); // guest: histórico é local
+    await ensureDB();
     const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10', [userId]);
     res.json({ messages: result.rows, count: result.rows.length });
   } catch {

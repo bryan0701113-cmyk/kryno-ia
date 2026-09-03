@@ -56,6 +56,15 @@ async function initDB() {
       )
     `);
 
+    // PRIVACIDADE (LGPD): apagar histórico guest que vazou no backend.
+    // Guests nunca devem ter mensagens salvas no servidor.
+    try {
+      const del = await pool.query("DELETE FROM messages WHERE user_id = 'anonimo'");
+      if (del.rowCount > 0) console.log(`🧹 Limpeza LGPD: ${del.rowCount} mensagens de guest apagadas do servidor`);
+    } catch (e) {
+      console.log('Cleanup guest skip:', e.message);
+    }
+
     await pool.query(`
       INSERT INTO ai_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING
     `);

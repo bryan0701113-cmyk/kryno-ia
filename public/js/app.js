@@ -34,8 +34,30 @@ function showChatScreen(user = null) {
 let chatHistory = [];
 let uploadedImage = null;
 let currentTab = 'chat';
+let isGuest = false;
+
+// ===== HISTÓRICO GUEST (local, privado por navegador - LGPD) =====
+const GUEST_KEY = 'kryno_guest_chats';
+
+function guestLoadChats() {
+  try { return JSON.parse(localStorage.getItem(GUEST_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function guestSaveChats(chats) {
+  try { localStorage.setItem(GUEST_KEY, JSON.stringify(chats.slice(-100))); }
+  catch { /* storage cheio */ }
+}
+
+function guestAddChat(userMessage, botReply) {
+  const chats = guestLoadChats();
+  chats.push({ id: Date.now(), user_message: userMessage, bot_reply: botReply, timestamp: new Date().toISOString() });
+  guestSaveChats(chats);
+}
 
 function enterAsGuest() {
+  isGuest = true;
+  sessionStorage.setItem('kryno_guest', '1');
   showChatScreen();
 }
 
@@ -115,6 +137,20 @@ function novaSessao() {
 
 async function renderSidebarHistorico() {
   const list = document.getElementById('sidebar-hist-list');
+  // GUEST: sidebar com histórico local
+  if (isGuest) {
+    const msgs = guestLoadChats().slice().reverse().slice(0, 8);
+    if (msgs.length === 0) {
+      list.innerHTML = '<div class="sidebar-hist-empty">Nenhuma conversa ainda.</div>';
+      return;
+    }
+    list.innerHTML = msgs.map(m => `
+      <div class="sidebar-hist-item" title="${escapeHtml(m.user_message)}">
+        <div class="side-hist-msg">${escapeHtml(m.user_message.substring(0, 40))}${m.user_message.length > 40 ? '...' : ''}</div>
+      </div>
+    `).join('');
+    return;
+  }
   try {
     const res = await fetch('/api/historico');
     if (res.status === 401) {
@@ -181,6 +217,7 @@ async function sendMessage() {
     // Salvar no histórico local
     chatHistory.push({ role: 'user', content: message });
     chatHistory.push({ role: 'assistant', content: data.reply });
+    if (isGuest) guestAddChat(message || '[imagem]', data.reply);
     renderSidebarHistorico();
   } catch (err) {
     typingEl.remove();
@@ -404,6 +441,29 @@ async function carregarHistorico() {
   const list = document.getElementById('historico-list');
   list.innerHTML = '<div class="historico-item">Carregando...</div>';
 
+  // GUEST: histórico é 100% local (privacidade/LGPD)
+  if (isGuest) {
+    const msgs = guestLoadChats().slice().reverse();
+    if (msgs.length === 0) {
+      list.innerHTML = '<div class="historico-item">Nenhuma conversa salva ainda. (No modo sem conta, o histórico fica só neste navegador)</div>';
+      return;
+    }
+    list.innerHTML = msgs.map(m => `
+      <div class="historico-item">
+        <div class="hist-item-header">
+          <div class="timestamp">${new Date(m.timestamp).toLocaleString('pt-BR')}</div>
+          <div class="hist-item-actions">
+            <button class="hist-open-btn" onclick="loadGuestConversation(${m.id})" title="Abrir no chat">💬 Abrir</button>
+            <button class="hist-delete-btn" onclick="deleteGuestChat(${m.id})" title="Excluir conversa">✕ Excluir</button>
+          </div>
+        </div>
+        <div class="user-msg">Você: ${escapeHtml(m.user_message)}</div>
+        <div class="bot-msg">Kryno: ${escapeHtml(m.bot_reply)}</div>
+      </div>
+    `).join('');
+    return;
+  }
+
   try {
     const res = await fetch('/api/historico');
     if (res.status === 401) {
@@ -436,6 +496,35 @@ async function carregarHistorico() {
 async function buscarHistorico() {
   const q = document.getElementById('historico-search').value;
   if (!q) return carregarHistorico();
+
+  // GUEST: busca local
+  if (isGuest) {
+    const needle = q.toLowerCase();
+    const msgs = guestLoadChats().filter(m =>
+      (m.user_message || '').toLowerCase().includes(needle) ||
+      (m.bot_reply || '').toLowerCase().includes(needle)
+    ).slice().reverse();
+    const list = document.getElementById('historico-list');
+    if (msgs.length === 0) {
+      list.innerHTML = '<div class="historico-item">Nada encontrado.</div>';
+      return;
+    }
+    list.innerHTML = msgs.map(m => `
+      <div class="historico-item">
+        <div class="hist-item-header">
+          <div class="timestamp">${new Date(m.timestamp).toLocaleString('pt-BR')}</div>
+          <div class="hist-item-actions">
+            <button class="hist-open-btn" onclick="loadGuestConversation(${m.id})" title="Abrir no chat">💬 Abrir</button>
+            <button class="hist-delete-btn" onclick="deleteGuestChat(${m.id})" title="Excluir conversa">✕ Excluir</button>
+          </div>
+        </div>
+        <div class="user-msg">Você: ${escapeHtml(m.user_message)}</div>
+        <div class="bot-msg">Kryno: ${escapeHtml(m.bot_reply)}</div>
+      </div>
+    `).join('');
+    return;
+  }
+
   try {
     const res = await fetch(`/api/historico/buscar?q=${encodeURIComponent(q)}`);
     if (res.status === 401) return;
@@ -485,8 +574,32 @@ async function loadConversation(id) {
   }
 }
 
+// ===== FUNÇÕES GUEST (localStorage) =====
+function loadGuestConversation(id) {
+  const msg = guestLoadChats().find(m => m.id === id);
+  if (!msg) { alert('Conversa não encontrada.'); return; }
+  chatHistory = [
+    { role: 'user', content: msg.user_message },
+    { role: 'assistant', content: msg.bot_reply }
+  ];
+  const container = document.getElementById('chat-messages');
+  container.innerHTML = '';
+  addMessage('user', msg.user_message);
+  addMessage('bot', msg.bot_reply);
+  switchTab('chat');
+}
+
+function deleteGuestChat(id) {
+  if (!confirm('Excluir esta conversa do histórico?')) return;
+  const chats = guestLoadChats().filter(m => m.id !== id);
+  guestSaveChats(chats);
+  carregarHistorico();
+  renderSidebarHistorico();
+}
+
 async function deleteChat(id) {
   if (!confirm('Excluir esta conversa do histórico?')) return;
+  if (isGuest) return deleteGuestChat(id);
   try {
     const res = await fetch(`/api/historico/${id}`, { method: 'DELETE' });
     const data = await res.json();
@@ -503,11 +616,32 @@ async function deleteChat(id) {
 
 async function limparHistorico() {
   if (!confirm('Apagar todo o histórico?')) return;
+  if (isGuest) {
+    guestSaveChats([]);
+    carregarHistorico();
+    renderSidebarHistorico();
+    return;
+  }
   await fetch('/api/historico', { method: 'DELETE' });
   carregarHistorico();
 }
 
 function exportarHistorico() {
+  if (isGuest) {
+    const chats = guestLoadChats();
+    if (chats.length === 0) { alert('Nenhuma conversa para exportar.'); return; }
+    let txt = '=== HISTÓRICO KRYNO IA (modo sem conta) ===\n\n';
+    chats.forEach(m => {
+      txt += `[${new Date(m.timestamp).toLocaleString('pt-BR')}]\nVocê: ${m.user_message}\nKryno: ${m.bot_reply}\n\n---\n\n`;
+    });
+    const blob = new Blob([txt], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'historico-kryno-guest.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return;
+  }
   window.open('/api/historico/exportar', '_blank');
 }
 
