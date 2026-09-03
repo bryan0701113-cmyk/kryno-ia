@@ -19,7 +19,7 @@ const ADMIN_PIN = process.env.ADMIN_PIN || '1212';
 const JWT_SECRET = process.env.JWT_SECRET || 'kryno-secret';
 
 // ===== MIDDLEWARES =====
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '50mb', verify: (req, res, buf) => { req.rawBody = buf.toString(); } }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 
@@ -218,6 +218,19 @@ app.get('/auth/me', async (req, res) => {
   if (!token) return res.json({ authenticated: false });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+    // Busca plano/role frescos do banco (ex: plano liberado pelo pagamento Kiwify)
+    if (decoded.id) {
+      try {
+        await ensureDB();
+        const u = await pool.query('SELECT plan, role, name, picture FROM users WHERE id = $1', [decoded.id]);
+        if (u.rows.length > 0) {
+          decoded.plan = u.rows[0].plan || 'free';
+          decoded.role = u.rows[0].role || 'user';
+          decoded.name = decoded.name || u.rows[0].name;
+          decoded.picture = u.rows[0].picture;
+        }
+      } catch {}
+    }
     res.json({ authenticated: true, user: decoded });
   } catch {
     res.json({ authenticated: false });
@@ -766,6 +779,94 @@ app.get('/admin', (req, res) => {
 });
 
 // ===== ROTA PRINCIPAL (SPA) =====
+// ===== WEBHOOK KIWIFY — libera o plano automaticamente quando paga =====
+const KIWIFY_WEBHOOK_SECRET = process.env.KIWIFY_WEBHOOK_SECRET || '';
+
+// Busca email e produto em qualquer estrutura de payload (Kiwify muda campos às vezes)
+function findIn(obj, keys, results = {}) {
+  if (!obj || typeof obj !== 'object') return results;
+  for (const k of Object.keys(obj)) {
+    const v = obj[k];
+    const kl = k.toLowerCase();
+    if (kl === 'email' && typeof v === 'string' && v.includes('@')) results.email = v;
+    if ((kl === 'product_name' || kl === 'productname' || kl === 'product_name_plan') && typeof v === 'string') results.productName = v;
+    if ((kl === 'product_id' || kl === 'productid') && typeof v === 'string') results.productId = v;
+    if ((kl === 'charge_amount' || kl === 'chargeamount' || kl === 'chargeamountcents') && (typeof v === 'number' || typeof v === 'string')) results.amount = results.amount || v;
+    if ((kl === 'order_id' || kl === 'orderid') && typeof v === 'string') results.orderId = results.orderId || v;
+    if (typeof v === 'object') findIn(v, keys, results);
+  }
+  return results;
+}
+
+app.post('/api/webhook/kiwify', async (req, res) => {
+  try {
+    // Verifica assinatura HMAC-SHA256 (se o secret foi configurado)
+    if (KIWIFY_WEBHOOK_SECRET) {
+      const sig = req.headers['signature'] || req.headers['x-kiwify-signature'] || '';
+      const crypto = require('crypto');
+      const expected = crypto.createHmac('sha256', KIWIFY_WEBHOOK_SECRET).update(req.rawBody || JSON.stringify(req.body)).digest('hex');
+      if (sig !== expected && sig !== 'sha1=' + expected) {
+        console.log('⚠️ Webhook Kiwify: assinatura inválida');
+        return res.status(401).json({ error: 'Assinatura inválida' });
+      }
+    }
+
+    const body = req.body || {};
+    const event = body.event || body.type || '';
+    console.log(`📩 Webhook Kiwify recebido: ${event}`);
+
+    // Só processa pagamento aprovado
+    const aprovado = event === 'payment.paid' || event === 'subscription.paid' || event === 'payment.approved';
+    const status = String(body.status || (body.orderpay && body.orderpay.PaymentStatus) || '').toLowerCase();
+    if (!aprovado && status !== 'paid' && status !== 'approved' && status !== 'paid') {
+      return res.json({ received: true, ignored: true });
+    }
+
+    const info = findIn(body, []);
+    if (!info.email) {
+      console.log('⚠️ Webhook Kiwify: sem email no payload');
+      return res.json({ received: true, error: 'sem email' });
+    }
+
+    // Descobre o plano: pelo nome do produto, pelo valor, ou pelo mapeamento de product_id
+    const nameLower = String(info.productName || '').toLowerCase();
+    let plan = null;
+    if (nameLower.includes('premium')) plan = 'premium';
+    else if (nameLower.includes('pro')) plan = 'pro';
+    if (!plan && info.amount) {
+      const valor = parseFloat(info.amount);
+      if (valor >= 16) plan = 'premium';
+      else if (valor >= 9) plan = 'pro';
+    }
+    const PROD_PREMIUM = process.env.KIWIFY_PREMIUM_PRODUCT_ID;
+    const PROD_PRO = process.env.KIWIFY_PRO_PRODUCT_ID;
+    if (!plan && info.productId && PROD_PREMIUM && info.productId === PROD_PREMIUM) plan = 'premium';
+    if (!plan && info.productId && PROD_PRO && info.productId === PROD_PRO) plan = 'pro';
+    if (!plan) plan = 'pro'; // default: se pagou, é pelo menos Pro
+
+    await ensureDB();
+
+    // Registra o pagamento
+    await pool.query(
+      `INSERT INTO payments (email, plan, product_id, product_name, amount, kiwify_order_id) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [info.email, plan, info.productId || '', info.productName || '', parseFloat(info.amount) || 0, info.orderId || '']
+    );
+
+    // Libera o plano pro usuário com esse email (conta Google)
+    const r = await pool.query('UPDATE users SET plan = $1 WHERE email = $2 RETURNING id, email, plan', [plan, info.email]);
+    if (r.rows.length > 0) {
+      console.log(`💎 Plano ${plan} liberado automaticamente pra ${info.email}`);
+      res.json({ received: true, success: true, user: r.rows[0] });
+    } else {
+      console.log(`⚠️ Pagamento de ${info.email} (${plan}) registrado, mas nenhuma conta Google com esse email`);
+      res.json({ received: true, pending: true });
+    }
+  } catch (e) {
+    console.error('Erro webhook Kiwify:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ===== ROTAS GOD MODE (NÍVEL 3) =====
 
 // Login God (PIN do dono)

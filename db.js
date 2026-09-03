@@ -98,6 +98,20 @@ async function initDB() {
       )
     `);
 
+    // Pagamentos Kiwify (log de quem pagou o quê)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id SERIAL PRIMARY KEY,
+        email TEXT NOT NULL,
+        plan TEXT NOT NULL,
+        product_id TEXT DEFAULT '',
+        product_name TEXT DEFAULT '',
+        amount REAL DEFAULT 0,
+        kiwify_order_id TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
     // Config global (Kill Switch etc)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS app_config (

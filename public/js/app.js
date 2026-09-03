@@ -38,7 +38,9 @@ function showChatScreen(user = null) {
   if (user) {
     const name = user.name || user.email || 'Convidado';
     avatar.textContent = name.trim().charAt(0).toUpperCase() || '?';
-    info.innerHTML = `<div class="u-name">${name}</div>`;
+    const badge = user.plan === 'premium' ? ' <span class="plan-badge plan-badge-premium">🥇 PREMIUM</span>'
+                : user.plan === 'pro' ? ' <span class="plan-badge plan-badge-pro">💎 PRO</span>' : '';
+    info.innerHTML = `<div class="u-name">${name}${badge}</div>`;
   } else {
     avatar.textContent = '?';
     info.innerHTML = `<div class="u-name">Convidado</div>`;
@@ -805,18 +807,85 @@ function escapeHtml(text) {
 }
 
 // ===== PLANOS =====
-function abrirPlanos() {
+async function abrirPlanos() {
   document.getElementById('planos-overlay').classList.remove('hidden');
   closeSidebarOnMobile();
+  // Destaca o plano atual do usuário
+  try {
+    const res = await fetch('/auth/me');
+    const data = await res.json();
+    const plan = (data.authenticated && data.user && data.user.plan) || 'free';
+    document.querySelectorAll('.plano-card').forEach(card => {
+      const isPro = card.classList.contains('plano-pro');
+      const isPremium = card.classList.contains('plano-premium');
+      const isMeu = (plan === 'pro' && isPro) || (plan === 'premium' && isPremium) || (plan === 'free' && !isPro && !isPremium);
+      const btn = card.querySelector('.plano-btn');
+      if (btn && isMeu) {
+        btn.textContent = plan === 'free' ? 'Seu plano atual' : 'Seu plano atual ✅';
+        btn.disabled = true;
+        btn.classList.add('plano-btn-atual');
+      } else if (btn) {
+        btn.disabled = false;
+        btn.classList.remove('plano-btn-atual');
+      }
+    });
+  } catch {}
 }
 
 function fecharPlanos() {
   document.getElementById('planos-overlay').classList.add('hidden');
 }
 
-function assinarPlano(plano) {
-  // TODO: conectar aqui com o link de pagamento real (Kiwify / Mercado Pago / Stripe)
-  alert('Assinatura do plano ' + (plano === 'pro' ? 'Kryno Pro 💎' : 'Kryno Premium 🥇') + ' em breve! Estamos configurando o pagamento.');
+// ===== PLANOS + KIWIFY =====
+const LINK_PAGAMENTO = {
+  pro: 'https://pay.kiwify.com.br/yiZpK8k',
+  premium: 'https://pay.kiwify.com.br/kM3RcqA'
+};
+
+async function assinarPlano(plano) {
+  let email = '';
+  try {
+    const res = await fetch('/auth/me');
+    const data = await res.json();
+    if (data.authenticated && data.user && data.user.email) {
+      email = data.user.email;
+    }
+  } catch {}
+
+  if (!email) {
+    alert('Pra assinar, entra com sua conta Google primeiro (botão Continuar com Google na tela de login). Aí o plano libera sozinho depois do pagamento! 😉');
+    return;
+  }
+
+  const nomePlano = plano === 'pro' ? 'Kryno Pro 💎' : 'Kryno Premium 🥇';
+  if (!confirm(`Assinar ${nomePlano}?\n\nUse o MESMO email da sua conta Google (${email}) na hora de pagar, pra liberar o plano sozinho!`)) return;
+
+  // Abre o checkout do Kiwify com o email já preenchido
+  window.open(LINK_PAGAMENTO[plano] + '?email=' + encodeURIComponent(email), '_blank');
+
+  // Fica verificando se o pagamento caiu (libera sozinho)
+  verificarPlanoAposPagamento(plano);
+}
+
+// Depois do pagamento: checa a cada 15s por até 20 min se o plano já foi liberado
+let planoPollTimer = null;
+function verificarPlanoAposPagamento(planoEsperado) {
+  clearInterval(planoPollTimer);
+  let tentativas = 0;
+  planoPollTimer = setInterval(async () => {
+    tentativas++;
+    try {
+      const res = await fetch('/auth/me');
+      const data = await res.json();
+      if (data.authenticated && data.user && data.user.plan === planoEsperado) {
+        clearInterval(planoPollTimer);
+        const nome = planoEsperado === 'pro' ? '💎 Kryno Pro' : '🥇 Kryno Premium';
+        alert(`PAGAMENTO CONFIRMADO! 🎉\n\n${nome} liberado! Suas recompensas já tão ativas. Aproveita! 🚀`);
+        location.reload();
+      }
+    } catch {}
+    if (tentativas >= 80) clearInterval(planoPollTimer); // ~20 min
+  }, 15000);
 }
 
 // ===== ACESSO SECRETO AO ADMIN =====
