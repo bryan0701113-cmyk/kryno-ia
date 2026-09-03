@@ -733,34 +733,89 @@ function assinarPlano(plano) {
   alert('Assinatura do plano ' + (plano === 'pro' ? 'Kryno Pro 💎' : 'Kryno Premium 🥇') + ' em breve! Estamos configurando o pagamento.');
 }
 
-// ===== ACESSO SECRETO AO ADMIN (Ctrl+Alt+A ou 5 toques no logo) =====
+// ===== ACESSO SECRETO AO ADMIN =====
+// PC: Ctrl+Alt+A | Celular: 5 toques rápidos (3s) no logo "Kryno IA"
+const ADMIN_SECRET = 'krynoadmin'; // <- troque o código aqui
+const ADMIN_TAP_WINDOW = 3000;   // janela de 3s para os 5 toques
+const ADMIN_MAX_TRIES = 3;        // tentativas antes de bloquear
+const ADMIN_LOCK_MS = 5 * 60 * 1000; // bloqueio de 5 minutos
+
+function abrirPainelAdmin() {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-admin').classList.add('active');
+  closeSidebarOnMobile();
+}
+
+// PC: Ctrl+Alt+A mantido
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.altKey && e.key.toLowerCase() === 'a') {
-    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-    document.getElementById('panel-admin').classList.add('active');
-    closeSidebarOnMobile();
+    abrirPainelAdmin();
   }
 });
 
-// Acesso secreto mobile: 5 toques rápidos no logo do sidebar
+// Easter egg mobile: 5 toques rápidos no logo -> prompt de código admin
 (function () {
   let taps = 0;
-  let timer = null;
+  let firstTapTs = 0;
+
   document.addEventListener('click', (e) => {
-    const logo = e.target.closest('.logo-small, .sidebar-header');
+    const logo = e.target.closest('#logo-kryno, #logo-kryno-mobile');
     if (!logo) return;
+
+    const now = Date.now();
+    // Resetar contador se passou da janela de 3s
+    if (!firstTapTs || (now - firstTapTs) > ADMIN_TAP_WINDOW) {
+      taps = 0;
+      firstTapTs = now;
+    }
     taps++;
-    clearTimeout(timer);
+
     if (taps >= 5) {
       taps = 0;
-      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-      document.getElementById('panel-admin').classList.add('active');
-      closeSidebarOnMobile();
-    } else {
-      timer = setTimeout(() => { taps = 0; }, 1200);
+      firstTapTs = 0;
+      pedirCodigoAdmin();
     }
   });
 })();
+
+function pedirCodigoAdmin() {
+  // Verificar bloqueio
+  const lockUntil = parseInt(localStorage.getItem('kryno_admin_lock') || '0');
+  const now = Date.now();
+  if (now < lockUntil) {
+    const min = Math.ceil((lockUntil - now) / 60000);
+    alert('Bloqueado. Tente novamente em ' + min + ' min.');
+    return;
+  }
+
+  const codigo = prompt('Código admin');
+  if (codigo === null || codigo === '') return; // cancelou, não conta tentativa
+
+  if (codigo === ADMIN_SECRET) {
+    localStorage.setItem('isAdmin', 'true');
+    localStorage.removeItem('kryno_admin_tries');
+    window.location.href = '/admin';
+    return;
+  }
+
+  // Código errado
+  let tries = parseInt(localStorage.getItem('kryno_admin_tries') || '0') + 1;
+  if (tries >= ADMIN_MAX_TRIES) {
+    localStorage.setItem('kryno_admin_lock', String(Date.now() + ADMIN_LOCK_MS));
+    localStorage.removeItem('kryno_admin_tries');
+    alert('Código incorreto. Acesso bloqueado por 5 minutos.');
+  } else {
+    localStorage.setItem('kryno_admin_tries', String(tries));
+    alert('Código incorreto. (' + tries + '/' + ADMIN_MAX_TRIES + ')');
+  }
+}
+
+// Se veio pela rota /admin ou já validou o código, abrir painel admin
+document.addEventListener('DOMContentLoaded', () => {
+  if (window.location.pathname === '/admin' || localStorage.getItem('isAdmin') === 'true') {
+    abrirPainelAdmin();
+  }
+});
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {

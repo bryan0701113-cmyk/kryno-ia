@@ -264,6 +264,11 @@ async function getAISettings() {
   return { temperature: 0.8, allow_swearing: 1, blocked_topics: '', system_prompt: '' };
 }
 
+// ===== ROTA SECRETA /admin (acesso mobile via easter egg) =====
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // ===== CHAT =====
 app.post('/api/chat', async (req, res) => {
   const { message, image, history } = req.body;
