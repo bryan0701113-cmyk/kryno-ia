@@ -310,6 +310,10 @@ async function sendMessage() {
   // Indicador de digitação
   const typingEl = addTypingIndicator();
 
+  // A Kryno "pensa" um pouco antes de responder (mínimo 5 segundos)
+  const tempoInicio = Date.now();
+  const TEMPO_MINIMO = 5000;
+
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
@@ -321,6 +325,12 @@ async function sendMessage() {
       })
     });
     const data = await res.json();
+
+    // Espera o que falta pra completar os 5 segundos (se a IA demorar mais, não espera nada)
+    const decorrido = Date.now() - tempoInicio;
+    if (decorrido < TEMPO_MINIMO) {
+      await new Promise(r => setTimeout(r, TEMPO_MINIMO - decorrido));
+    }
 
     typingEl.remove();
     addMessage('bot', data.reply);
