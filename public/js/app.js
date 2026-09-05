@@ -37,7 +37,7 @@ async function initApp() {
       no_code: 'O Google não devolveu o código de login. Tenta de novo.',
       no_state: 'A sessão de login expirou. Tenta de novo.',
       invalid_state: 'A sessão de login expirou ou é inválida. Tenta de novo.',
-      access_denied: 'Você cancelou o login com o Google.',
+      access_denied: 'O Google bloqueou o login. Se você viu "app em modo de teste", o app precisa ser liberado pelo Google (modo produção).',
       mismatch_by_uri: 'Erro de configuração no servidor. Avise o Brayan.',
       banned: 'Sua conta foi banida da Kryno. 😕',
       login_failed: 'O login falhou: ' + (reason || 'erro desconhecido'),
@@ -156,6 +156,21 @@ function guestOpenSession(id) {
   switchTab('chat');
 }
 
+// Exclui uma sessão do histórico do convidado
+function guestDeleteSession(id) {
+  if (!confirm('Excluir esta conversa do histórico?')) return;
+  const sessions = guestLoadSessions().filter(s => String(s.id) !== String(id));
+  guestSaveSessions(sessions);
+  // se apagou a conversa que tá aberta, limpa o chat
+  if (localStorage.getItem(GUEST_CHAT_ID_KEY) === String(id)) {
+    localStorage.removeItem(GUEST_CHAT_ID_KEY);
+    chatHistory = [];
+    const container = document.getElementById('chat-messages');
+    container.innerHTML = '<div class="welcome-msg"><div class="welcome-logo">⚡</div><h2>Kryno IA</h2><p>Nova sessão iniciada! Sobre o que vamos conversar agora?</p></div>';
+  }
+  renderSidebarHistorico();
+}
+
 function enterAsGuest() {
   isGuest = true;
   sessionStorage.setItem('kryno_guest', '1');
@@ -258,6 +273,7 @@ async function renderSidebarHistorico() {
     list.innerHTML = sessions.map(s => `
       <div class="sidebar-hist-item" title="${escapeHtml(s.title || 'Conversa')}">
         <span onclick="guestOpenSession('${s.id}')">${escapeHtml(s.title || 'Conversa').substring(0, 36)}</span>
+        <button class="hist-delete-btn" onclick="event.stopPropagation(); guestDeleteSession('${s.id}')" title="Excluir">✕</button>
       </div>
     `).join('');
     return;
@@ -719,8 +735,8 @@ function deleteGuestChat(id) {
 }
 
 async function deleteChat(id) {
+  if (isGuest) return guestDeleteSession(id);
   if (!confirm('Excluir esta conversa do histórico?')) return;
-  if (isGuest) return deleteGuestChat(id);
   try {
     const res = await fetch(`/api/historico/${id}`, { method: 'DELETE' });
     const data = await res.json();
