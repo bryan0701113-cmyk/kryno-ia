@@ -243,7 +243,7 @@ app.get('/auth/me', async (req, res) => {
     if (decoded.id) {
       try {
         await ensureDB();
-        const u = await pool.query('SELECT plan, role, name, picture, banned FROM users WHERE id = $1', [decoded.id]);
+        const u = await pool.query('SELECT plan, role, name, picture, banned, divulgador FROM users WHERE id = $1', [decoded.id]);
         if (u.rows.length > 0) {
           // BAN DE VERDADE: usuário banido é expulso na hora
           if (u.rows[0].banned == 1) {
@@ -254,6 +254,7 @@ app.get('/auth/me', async (req, res) => {
           decoded.role = u.rows[0].role || 'user';
           decoded.name = decoded.name || u.rows[0].name;
           decoded.picture = u.rows[0].picture;
+          decoded.divulgador = u.rows[0].divulgador == 1;
         }
       } catch {}
     }
@@ -308,7 +309,7 @@ app.post('/auth/google/token', async (req, res) => {
 
     // Criar JWT de sessão
     const token = jwt.sign(
-      { id: user.id, email: user.email, name: user.name, role: user.role, plan: user.plan || 'free' },
+      { id: user.id, email: user.email, name: user.name, role: user.role, plan: user.plan || 'free', divulgador: user.divulgador == 1 },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -761,7 +762,7 @@ app.get('/api/admin/stats', adminMiddleware, async (req, res) => {
 app.get('/api/admin/users', adminMiddleware, async (req, res) => {
   try {
     await ensureDB();
-    const result = await pool.query('SELECT id, email, name, picture, role, plan, created_at, banned FROM users ORDER BY created_at DESC');
+    const result = await pool.query('SELECT id, email, name, picture, role, plan, divulgador, created_at, banned FROM users ORDER BY created_at DESC');
     res.json({ users: result.rows });
   } catch {
     res.json({ users: [] });
@@ -1075,6 +1076,21 @@ app.get('/api/god/stats', godMiddleware, async (req, res) => {
     res.json({ byHour, byCountry, byModel, onlineNow });
   } catch {
     res.json({ byHour: [], byCountry: [], byModel: [], onlineNow: 0 });
+  }
+});
+
+// EMBLEMA DIVULGADOR: só dá/tira pelo painel God, ninguém compra
+app.post('/api/god/badge', godMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const { email, divulgador, pin } = req.body;
+    if (pin !== GOD_PIN) return res.status(401).json({ error: 'PIN de verificação incorreto' });
+    if (!email || !/@/.test(email)) return res.status(400).json({ error: 'Email inválido' });
+    const r = await pool.query('UPDATE users SET divulgador = $1 WHERE email = $2 RETURNING id, email, divulgador', [divulgador ? 1 : 0, email]);
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Nenhuma conta Google com esse email' });
+    res.json({ success: true, user: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

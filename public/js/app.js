@@ -68,7 +68,10 @@ function showChatScreen(user = null) {
     avatar.textContent = name.trim().charAt(0).toUpperCase() || '?';
     const badge = user.plan === 'premium' ? '<span class="plan-badge plan-badge-premium">🥇 PREMIUM</span>'
                 : user.plan === 'pro' ? '<span class="plan-badge plan-badge-pro">💎 PRO</span>' : '';
-    info.innerHTML = `<div class="u-name">${name}</div>` + (badge ? `<div class="u-badge">${badge}</div>` : '');
+    const emblemas = [];
+    if (user.role === 'admin' || user.role === 'god') emblemas.push('<span class="emblema emblema-admin">🛡️ ADMIN</span>');
+    if (user.divulgador) emblemas.push('<span class="emblema emblema-divulgador">📣 DIVULGADOR</span>');
+    info.innerHTML = `<div class="u-name">${name}</div>` + ((badge || emblemas.length) ? `<div class="u-badge">${emblemas.join(' ')} ${badge}</div>` : '');
   } else {
     avatar.textContent = '?';
     info.innerHTML = `<div class="u-name">Convidado</div>`;
@@ -915,7 +918,7 @@ async function carregarAdmin() {
       <div class="admin-user-item">
         ${u.picture ? `<img src="${u.picture}" alt="">` : '<div style="width:36px;height:36px;border-radius:50%;background:#333;display:flex;align-items:center;justify-content:center;">👤</div>'}
         <div class="info">
-          <div class="name">${u.plan === 'premium' ? '<span class="admin-plan-badge premium">🥇 PREMIUM</span> ' : u.plan === 'pro' ? '<span class="admin-plan-badge pro">💎 PRO</span> ' : ''}${escapeHtml(u.name || 'Sem nome')}</div>
+          <div class="name">${u.plan === 'premium' ? '<span class="admin-plan-badge premium">🥇 PREMIUM</span> ' : u.plan === 'pro' ? '<span class="admin-plan-badge pro">💎 PRO</span> ' : ''}${(u.role === 'admin' || u.role === 'god') ? '<span class="emblema emblema-admin">🛡️ ADMIN</span> ' : ''}${u.divulgador == 1 ? '<span class="emblema emblema-divulgador">📣 DIVULGADOR</span> ' : ''}${escapeHtml(u.name || 'Sem nome')}</div>
           <div class="email">${u.email}</div>
         </div>
         ${u.banned
@@ -1199,7 +1202,7 @@ async function carregarUsersGod() {
     list.innerHTML = data.users.map(u => `
       <div class="god-user-item">
         <div class="g-info">
-          <div class="g-name">${u.plan === 'premium' ? '<span class="admin-plan-badge premium">🥇 PREMIUM</span> ' : u.plan === 'pro' ? '<span class="admin-plan-badge pro">💎 PRO</span> ' : ''}${escapeHtml(u.name || 'Sem nome')} <span class="g-role-badge">${u.role || 'user'}</span></div>
+          <div class="g-name">${u.plan === 'premium' ? '<span class="admin-plan-badge premium">🥇 PREMIUM</span> ' : u.plan === 'pro' ? '<span class="admin-plan-badge pro">💎 PRO</span> ' : ''}${(u.role === 'admin' || u.role === 'god') ? '<span class="emblema emblema-admin">🛡️</span> ' : ''}${u.divulgador == 1 ? '<span class="emblema emblema-divulgador">📣</span> ' : ''}${escapeHtml(u.name || 'Sem nome')} <span class="g-role-badge">${u.role || 'user'}</span></div>
           <div class="g-email">${escapeHtml(u.email)}</div>
         </div>
         <select class="g-role-select" onchange="definirRole('${escapeHtml(u.email)}', this.value)">
@@ -1209,9 +1212,29 @@ async function carregarUsersGod() {
           <option value="god" ${u.role === 'god' ? 'selected' : ''}>God</option>
         </select>
         <button class="g-imp-btn" onclick="impersonateUser(${u.id}, '${escapeHtml(u.name || u.email)}')">👁️ Entrar como</button>
+        <button class="g-imp-btn" onclick="alternarDivulgador('${escapeHtml(u.email)}', ${u.divulgador == 1})">${u.divulgador == 1 ? '📣 Retirar emblema' : '📣 Dar emblema'}</button>
       </div>
     `).join('');
   } catch {}
+}
+
+async function alternarDivulgador(email, temEmblema) {
+  const pin = prompt('🔐 Confirmar que é o dono:\nDigite o PIN de verificação:');
+  if (pin === null) return;
+  try {
+    const res = await fetch('/api/god/badge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, divulgador: !temEmblema, pin })
+    });
+    const data = await res.json();
+    if (data.success) {
+      toast(!temEmblema ? '📣 Emblema de divulgador dado!' : '📣 Emblema retirado!');
+      carregarUsuariosGod();
+    } else {
+      alert(data.error || 'Erro');
+    }
+  } catch { alert('Erro de conexão'); }
 }
 
 async function definirRole(email, role) {

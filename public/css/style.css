@@ -741,3 +741,21 @@ body {
 .god-user-item .g-info { flex: 1 1 100%; min-width: 0; }
 .god-user-item .g-name { overflow-wrap: anywhere; line-height: 1.6; }
 .g-name .admin-plan-badge { flex-shrink: 0; }
+
+/* ===== EMBLEMAS (só via painel, nunca compráveis) ===== */
+.emblema {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 700; letter-spacing: .4px;
+  padding: 2px 8px; border-radius: 999px; vertical-align: middle;
+  text-transform: uppercase; margin-right: 4px;
+}
+.emblema-admin {
+  background: linear-gradient(135deg, rgba(255, 60, 60, .25), rgba(255, 180, 40, .25));
+  color: #ffcf70; border: 1px solid rgba(255, 180, 40, .45);
+  text-shadow: 0 0 6px rgba(255, 180, 40, .35);
+}
+.emblema-divulgador {
+  background: linear-gradient(135deg, rgba(56, 189, 248, .25), rgba(168, 85, 247, .25));
+  color: #7dd3fc; border: 1px solid rgba(56, 189, 248, .45);
+  text-shadow: 0 0 6px rgba(56, 189, 248, .35);
+}

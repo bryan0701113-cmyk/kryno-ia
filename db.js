@@ -77,6 +77,11 @@ async function initDB() {
       )
     `);
 
+    // Emblemas: divulgador só via painel God (admin é o role)
+    try {
+      await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS divulgador INTEGER DEFAULT 0`);
+    } catch {}
+
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)`);
 
