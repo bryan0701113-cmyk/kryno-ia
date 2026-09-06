@@ -69,9 +69,10 @@ function showChatScreen(user = null) {
     const badge = user.plan === 'premium' ? '<span class="plan-badge plan-badge-premium">🥇 PREMIUM</span>'
                 : user.plan === 'pro' ? '<span class="plan-badge plan-badge-pro">💎 PRO</span>' : '';
     const emblemas = [];
-    if (user.role === 'admin' || user.role === 'god') emblemas.push('<span class="emblema emblema-admin">🛡️ ADMIN</span>');
+    const isAdmin = user.role === 'admin' || user.role === 'god';
+    if (isAdmin) emblemas.push('<span class="emblema emblema-admin">🛡️ ADMIN</span>');
     if (user.divulgador) emblemas.push('<span class="emblema emblema-divulgador">📣 DIVULGADOR</span>');
-    info.innerHTML = `<div class="u-name">${name}</div>` + ((badge || emblemas.length) ? `<div class="u-badge">${emblemas.join(' ')} ${badge}</div>` : '');
+    info.innerHTML = `<div class="u-name${isAdmin ? ' rgb-admin' : ''}">${name}</div>` + ((badge || emblemas.length) ? `<div class="u-badge">${emblemas.join(' ')} ${badge}</div>` : '');
   } else {
     avatar.textContent = '?';
     info.innerHTML = `<div class="u-name">Convidado</div>`;
@@ -918,7 +919,7 @@ async function carregarAdmin() {
       <div class="admin-user-item">
         ${u.picture ? `<img src="${u.picture}" alt="">` : '<div style="width:36px;height:36px;border-radius:50%;background:#333;display:flex;align-items:center;justify-content:center;">👤</div>'}
         <div class="info">
-          <div class="name">${u.plan === 'premium' ? '<span class="admin-plan-badge premium">🥇 PREMIUM</span> ' : u.plan === 'pro' ? '<span class="admin-plan-badge pro">💎 PRO</span> ' : ''}${(u.role === 'admin' || u.role === 'god') ? '<span class="emblema emblema-admin">🛡️ ADMIN</span> ' : ''}${u.divulgador == 1 ? '<span class="emblema emblema-divulgador">📣 DIVULGADOR</span> ' : ''}${escapeHtml(u.name || 'Sem nome')}</div>
+          <div class="name">${u.plan === 'premium' ? '<span class="admin-plan-badge premium">🥇 PREMIUM</span> ' : u.plan === 'pro' ? '<span class="admin-plan-badge pro">💎 PRO</span> ' : ''}${(u.role === 'admin' || u.role === 'god') ? '<span class="emblema emblema-admin">🛡️ ADMIN</span> ' : ''}${u.divulgador == 1 ? '<span class="emblema emblema-divulgador">📣 DIVULGADOR</span> ' : ''}<span class="${(u.role === 'admin' || u.role === 'god') ? 'rgb-admin' : ''}">${escapeHtml(u.name || 'Sem nome')}</span></div>
           <div class="email">${u.email}</div>
         </div>
         ${u.banned
@@ -1202,7 +1203,7 @@ async function carregarUsersGod() {
     list.innerHTML = data.users.map(u => `
       <div class="god-user-item">
         <div class="g-info">
-          <div class="g-name">${u.plan === 'premium' ? '<span class="admin-plan-badge premium">🥇 PREMIUM</span> ' : u.plan === 'pro' ? '<span class="admin-plan-badge pro">💎 PRO</span> ' : ''}${(u.role === 'admin' || u.role === 'god') ? '<span class="emblema emblema-admin">🛡️</span> ' : ''}${u.divulgador == 1 ? '<span class="emblema emblema-divulgador">📣</span> ' : ''}${escapeHtml(u.name || 'Sem nome')} <span class="g-role-badge">${u.role || 'user'}</span></div>
+          <div class="g-name">${u.plan === 'premium' ? '<span class="admin-plan-badge premium">🥇 PREMIUM</span> ' : u.plan === 'pro' ? '<span class="admin-plan-badge pro">💎 PRO</span> ' : ''}${(u.role === 'admin' || u.role === 'god') ? '<span class="emblema emblema-admin">🛡️</span> ' : ''}${u.divulgador == 1 ? '<span class="emblema emblema-divulgador">📣</span> ' : ''}<span class="${(u.role === 'admin' || u.role === 'god') ? 'rgb-admin' : ''}">${escapeHtml(u.name || 'Sem nome')}</span> <span class="g-role-badge">${u.role || 'user'}</span></div>
           <div class="g-email">${escapeHtml(u.email)}</div>
         </div>
         <select class="g-role-select" onchange="definirRole('${escapeHtml(u.email)}', this.value)">
@@ -1395,6 +1396,29 @@ async function toggleKillSwitch() {
 }
 
 // LIBERAR PLANOS POR EMAIL (com PIN do dono)
+async function enviarEmblema() {
+  const email = document.getElementById('emblema-email').value.trim();
+  const [emblema, acao] = document.getElementById('emblema-select').value.split('-');
+  if (!email || !/@/.test(email)) return alert('Digita um email de conta Google válido');
+  const pin = prompt('🔐 Confirmar que é o dono:\nDigite o PIN de verificação:');
+  if (pin === null) return;
+  try {
+    const res = await fetch('/api/god/emblema', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, emblema, acao, pin })
+    });
+    const data = await res.json();
+    if (data.success) {
+      const nome = emblema === 'admin' ? '🛡️ Administrador' : '📣 Divulgador';
+      toast((acao === 'dar' ? '✅ ' + nome + ' dado pra ' : '✅ ' + nome + ' retirado de ') + email);
+      document.getElementById('emblema-email').value = '';
+    } else {
+      alert(data.error || data.msg || 'Erro');
+    }
+  } catch { alert('Erro de conexão'); }
+}
+
 async function liberarPlano() {
   const email = document.getElementById('plan-email').value.trim();
   const plan = document.getElementById('plan-select').value;

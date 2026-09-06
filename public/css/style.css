@@ -759,3 +759,18 @@ body {
   color: #7dd3fc; border: 1px solid rgba(56, 189, 248, .45);
   text-shadow: 0 0 6px rgba(56, 189, 248, .35);
 }
+
+/* ===== NOME RGB (só administradores) ===== */
+.rgb-admin {
+  background: linear-gradient(90deg, #ff3131, #ff9f1c, #ffe74c, #4ade80, #22d3ee, #60a5fa, #a855f7, #ff3131);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rgbflow 2.5s linear infinite;
+  font-weight: 700;
+}
+@keyframes rgbflow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}

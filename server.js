@@ -1079,6 +1079,37 @@ app.get('/api/god/stats', godMiddleware, async (req, res) => {
   }
 });
 
+// EMBLEMAS POR EMAIL (admin/divulgador): só pelo painel God, nunca compráveis
+app.post('/api/god/emblema', godMiddleware, async (req, res) => {
+  try {
+    await ensureDB();
+    const { email, emblema, acao, pin } = req.body;
+    if (pin !== GOD_PIN) return res.status(401).json({ error: 'PIN de verificação incorreto' });
+    if (!email || !/@/.test(email)) return res.status(400).json({ error: 'Email inválido' });
+    if (!['admin', 'divulgador'].includes(emblema)) return res.status(400).json({ error: 'Emblema inválido' });
+    if (acao !== 'dar' && acao !== 'retirar') return res.status(400).json({ error: 'Ação inválida' });
+    let r;
+    if (emblema === 'admin') {
+      if (acao === 'dar') {
+        r = await pool.query("UPDATE users SET role = 'admin' WHERE email = $1 RETURNING id, email, role, divulgador", [email]);
+      } else {
+        // só rebaixa admin, nunca mexe em god
+        r = await pool.query("UPDATE users SET role = 'user' WHERE email = $1 AND role = 'admin' RETURNING id, email, role, divulgador", [email]);
+        if (r.rows.length === 0) {
+          const chk = await pool.query('SELECT role FROM users WHERE email = $1', [email]);
+          if (chk.rows.length > 0 && chk.rows[0].role !== 'admin') return res.json({ success: true, msg: 'Essa conta não é administrador (god não é rebaixado)' });
+        }
+      }
+    } else {
+      r = await pool.query('UPDATE users SET divulgador = $1 WHERE email = $2 RETURNING id, email, role, divulgador', [acao === 'dar' ? 1 : 0, email]);
+    }
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Nenhuma conta Google com esse email' });
+    res.json({ success: true, user: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // EMBLEMA DIVULGADOR: só dá/tira pelo painel God, ninguém compra
 app.post('/api/god/badge', godMiddleware, async (req, res) => {
   try {

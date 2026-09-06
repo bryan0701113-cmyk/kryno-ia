@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kryno IA 🔥 - Sua IA Completa</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
-  <link rel="stylesheet" href="/css/style.css?v=33">
+  <link rel="stylesheet" href="/css/style.css?v=34">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#a855f7">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -232,6 +232,18 @@
                       <button onclick="liberarPlano()">🚀 Enviar</button>
                     </div>
                     <p class="hint">Ao enviar, vai pedir o PIN de verificação pra confirmar que é o dono.</p>
+
+                    <div class="god-subtitle" style="margin-top:20px">🏅 Emblemas (não dá pra comprar — só daqui)</div>
+                    <div class="god-plan-form">
+                      <input type="email" id="emblema-email" placeholder="Email da conta Google do usuário">
+                      <select id="emblema-select">
+                        <option value="admin-dar">🛡️ Administrador — dar</option>
+                        <option value="admin-retirar">🛡️ Administrador — retirar</option>
+                        <option value="divulgador-dar">📣 Divulgador — dar</option>
+                        <option value="divulgador-retirar">📣 Divulgador — retirar</option>
+                      </select>
+                      <button onclick="enviarEmblema()">🏅 Enviar emblema</button>
+                    </div>
                   </div>
 
                   <!-- KILL SWITCH -->
@@ -312,7 +324,7 @@
         </div>
       </div>
   </div>
-  <script src="/js/app.js?v=33"></script>
+  <script src="/js/app.js?v=34"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
