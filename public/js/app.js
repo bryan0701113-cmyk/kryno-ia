@@ -217,7 +217,7 @@ async function initGoogleGIS() {
     window.google.accounts.id.initialize({
       client_id: cfg.google_client_id,
       callback: handleGoogleCredential,
-      auto_select: false,
+      auto_select: true,
       use_fedcm_for_prompt: true
     });
 
@@ -231,6 +231,12 @@ async function initGoogleGIS() {
       );
     }
     googleGISPronto = true;
+
+    // RESTAURAR CONTA: se a tela de login ta aberta, tenta entrar de novo sozinho
+    const telaLoginAberta = () => document.getElementById('login-screen') && !document.getElementById('login-screen').classList.contains('hidden');
+    if (telaLoginAberta()) {
+      try { window.google.accounts.id.prompt(); } catch {}
+    }
   } catch (err) {
     console.warn('GIS indisponivel, usando fluxo redirect', err);
   }

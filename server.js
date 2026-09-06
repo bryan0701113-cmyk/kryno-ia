@@ -204,7 +204,7 @@ app.get('/auth/google/callback', async (req, res) => {
 
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name, role: user.role, plan: user.plan || 'free' }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.cookie('token', token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 });
+    res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000 });
     
     // Se veio de popup, retorna HTML que fecha a popup e avisa a página pai
     if (req.cookies.oauth_popup === '1') {
@@ -315,7 +315,7 @@ app.post('/auth/google/token', async (req, res) => {
     );
 
     // Setar cookie
-    res.cookie('token', token, { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
+    res.cookie('token', token, { httpOnly: true, maxAge: 30 * 24 * 60 * 60 * 1000, sameSite: 'lax' });
     res.json({ success: true, user: { id: user.id, email: user.email, name: user.name, picture: user.picture, role: user.role, plan: user.plan || 'free' } });
   } catch (err) {
     console.error('Erro no login GIS:', err.message);
