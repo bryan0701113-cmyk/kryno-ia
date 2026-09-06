@@ -870,12 +870,24 @@ async function carregarAdmin() {
           <div class="name">${u.name || 'Sem nome'}</div>
           <div class="email">${u.email}</div>
         </div>
-        ${u.banned ? '<span class="banned-badge">Banido</span>' : `<button onclick="banirUsuario('${u.email}')" style="background:rgba(255,50,50,.2);color:#ff6b6b;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;">Banir</button>`}
+        ${u.banned
+          ? '<span class="banned-badge">Banido</span><button onclick="desbanirUsuario(\'' + u.email + '\')" style="background:rgba(50,200,100,.18);color:#4ade80;border:1px solid rgba(74,222,128,.4);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;">✅ Desbanir</button>'
+          : `<button onclick="banirUsuario('${u.email}')" style="background:rgba(255,50,50,.2);color:#ff6b6b;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;">Banir</button>`}
       </div>
     `).join('');
   } catch (err) {
     console.error('Erro admin:', err);
   }
+}
+
+async function desbanirUsuario(email) {
+  if (!confirm(`Desbanir ${email}?\nA pessoa vai poder voltar a usar a Kryno IA.`)) return;
+  await fetch('/api/admin/unban', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email })
+  });
+  carregarAdmin();
 }
 
 async function banirUsuario(email) {
@@ -1356,13 +1368,35 @@ function mostrarTelaBan() {
   try { document.title = 'Banido | Kryno IA'; } catch {}
 }
 
-// Checa a cada 20s se o usuário foi banido (expulsa na hora, mesmo já logado)
+// Checa a cada 15s se o usuário foi banido (expulsa na hora, mesmo já logado)
+// e, se estava na tela de ban, detecta quando é desbanido
 function iniciarVigilanciaBan() {
   setInterval(async () => {
     try {
       const res = await fetch('/auth/me');
       const data = await res.json();
-      if (data.banned) mostrarTelaBan();
+      if (data.banned) {
+        mostrarTelaBan();
+        return;
+      }
+      // estava banido e foi desbanido -> aviso verde + volta pro app
+      const banEl = document.getElementById('ban-screen');
+      if (banEl && !banEl.classList.contains('hidden')) {
+        avisoDesbanido();
+      }
     } catch {}
-  }, 20000);
+  }, 15000);
+}
+
+// Aviso verde de desbanimento (3 segundos)
+function avisoDesbanido() {
+  const toast = document.getElementById('desbanido-toast');
+  toast.classList.remove('hidden');
+  toast.classList.add('mostrar');
+  setTimeout(() => {
+    toast.classList.remove('mostrar');
+    toast.classList.add('hidden');
+    // volta pro app (a tela de login aparece de novo)
+    location.reload();
+  }, 3000);
 }
