@@ -737,6 +737,7 @@ body {
 .admin-plan-badge.pro { background: rgba(139, 92, 246, .28); color: #c4b5fd; }
 .admin-plan-badge.premium { background: rgba(245, 158, 11, .22); color: #fcd34d; }
 
-/* lista god: nome nunca corta */
-.god-user-item .g-info { min-width: 0; }
-.god-user-item .g-name { overflow-wrap: anywhere; line-height: 1.5; }
+/* lista god: nome nunca corta - nome ocupa a linha inteira, botoes quebram pra baixo */
+.god-user-item .g-info { flex: 1 1 100%; min-width: 0; }
+.god-user-item .g-name { overflow-wrap: anywhere; line-height: 1.6; }
+.g-name .admin-plan-badge { flex-shrink: 0; }
