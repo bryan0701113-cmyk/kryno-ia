@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kryno-ia-v39';
+const CACHE_NAME = 'kryno-ia-v40';
 const ASSETS = [
   '/',
   '/manifest.json'

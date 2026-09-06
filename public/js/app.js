@@ -413,7 +413,7 @@ async function sendMessage() {
       body: JSON.stringify({
         message,
         image: uploadedImage,
-        history: chatHistory.slice(-10)
+        history: chatHistory.slice(-30)
       })
     });
     const data = await res.json();
