@@ -32,6 +32,7 @@ async function initApp() {
 
   // Not logged in - show login screen
   document.getElementById('login-screen').classList.remove('hidden');
+  initGoogleGIS();
 
   // Mostra erro do login Google se veio na URL (ex: /?error=login_failed&reason=...)
   const params = new URLSearchParams(window.location.search);
@@ -186,13 +187,66 @@ function loginApple() {
 }
 
 
-// ===== LOGIN GOOGLE (redirect flow - funciona no site e TWA) =====
+// ===== LOGIN GOOGLE (GIS nativo: funciona dentro do app instalado/TWA) =====
+let googleGISPronto = false;
+
+async function initGoogleGIS() {
+  if (googleGISPronto) return;
+  try {
+    const res = await fetch('/api/config');
+    const cfg = await res.json();
+    if (!cfg.google_enabled || !cfg.google_client_id) return;
+
+    // carrega o script do Google uma vez
+    if (!document.getElementById('gsi-script')) {
+      await new Promise((ok, falha) => {
+        const s = document.createElement('script');
+        s.src = 'https://accounts.google.com/gsi/client';
+        s.id = 'gsi-script';
+        s.async = true;
+        s.onload = ok; s.onerror = falha;
+        document.head.appendChild(s);
+      });
+    }
+    if (!window.google?.accounts?.id) return;
+
+    window.google.accounts.id.initialize({
+      client_id: cfg.google_client_id,
+      callback: handleGoogleCredential,
+      auto_select: false,
+      use_fedcm_for_prompt: true
+    });
+
+    // renderiza o botao oficial do Google no lugar do nosso botao
+    const container = document.getElementById('google-login-container');
+    if (container) {
+      container.innerHTML = '<div id="gis-btn-wrap" style="display:flex;justify-content:center;margin:10px 0;"></div>';
+      window.google.accounts.id.renderButton(
+        document.getElementById('gis-btn-wrap'),
+        { theme: 'outline', size: 'large', shape: 'pill', text: 'continue_with', locale: 'pt-BR', width: 280 }
+      );
+      // botao antigo (redirect) fica como alternativa discreta
+      const fallback = document.createElement('button');
+      fallback.className = 'btn-google';
+      fallback.style.cssText = 'width:auto;padding:8px 18px;font-size:13px;opacity:.75;margin:0 auto 6px;';
+      fallback.textContent = 'ou login pelo navegador';
+      fallback.onclick = () => { window.location.href = '/auth/google'; };
+      const hintWrap = document.createElement('div');
+      hintWrap.style.cssText = 'display:flex;justify-content:center;';
+      hintWrap.appendChild(fallback);
+      container.appendChild(hintWrap);
+    }
+    googleGISPronto = true;
+  } catch (err) {
+    console.warn('GIS indisponivel, usando fluxo redirect', err);
+  }
+}
+
 function loginGoogleGIS() {
   window.location.href = '/auth/google';
 }
 
 async function handleGoogleCredential(response) {
-  // Mantida para compatibilidade caso GIS carregue
   try {
     const res = await fetch('/auth/google/token', {
       method: 'POST',
@@ -202,6 +256,10 @@ async function handleGoogleCredential(response) {
     const data = await res.json();
     if (data.success) {
       showChatScreen(data.user);
+      carregarHistorico();
+      try { toast('Bem-vindo de volta! 👋'); } catch {}
+    } else {
+      alert(data.error || 'Nao foi possivel entrar. Tente novamente.');
     }
   } catch (err) {
     alert('Erro de conexao. Tente novamente.');

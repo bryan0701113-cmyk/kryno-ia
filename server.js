@@ -322,6 +322,14 @@ app.post('/auth/google/token', async (req, res) => {
   }
 });
 
+// ===== CONFIG PUBLICA (client_id do Google pro GIS) =====
+app.get('/api/config', (req, res) => {
+  res.json({
+    google_enabled: GOOGLE_ENABLED,
+    google_client_id: GOOGLE_ENABLED ? GOOGLE_CLIENT_ID : null
+  });
+});
+
 // ===== OBTER SETTINGS DA IA =====
 async function getAISettings() {
   try {
