@@ -319,7 +319,8 @@ async function sendMessage() {
 
   // LIMITE DIÁRIO DO CONVIDADO: 20 mensagens/dia (plano grátis)
   if (isGuest) {
-    const hoje = new Date().toISOString().slice(0, 10);
+    const agora = new Date();
+    const hoje = agora.getFullYear() + '-' + String(agora.getMonth()+1).padStart(2,'0') + '-' + String(agora.getDate()).padStart(2,'0');
     const chave = 'kryno_msgs_' + hoje;
     const usadas = parseInt(localStorage.getItem(chave) || '0');
     if (usadas >= 20) {
@@ -532,7 +533,8 @@ async function gerarImagem() {
 
   // LIMITE DIÁRIO DE IMAGENS DO CONVIDADO: 3/dia (plano grátis)
   if (isGuest) {
-    const hoje = new Date().toISOString().slice(0, 10);
+    const agora = new Date();
+    const hoje = agora.getFullYear() + '-' + String(agora.getMonth()+1).padStart(2,'0') + '-' + String(agora.getDate()).padStart(2,'0');
     const chave = 'kryno_imgs_' + hoje;
     const usadas = parseInt(localStorage.getItem(chave) || '0');
     if (usadas >= 3) {

@@ -377,7 +377,7 @@ app.post('/api/chat', async (req, res) => {
       const plano = await planoDoUsuario(userEmail);
       const limite = LIMITES_PLANO[plano] ? LIMITES_PLANO[plano].mensagens : 20;
       const contagem = await pool.query(
-        'SELECT COUNT(*) as total FROM messages WHERE user_id = $1 AND timestamp >= CURRENT_DATE',
+        "SELECT COUNT(*) as total FROM messages WHERE user_id = $1 AND timestamp >= (now() AT TIME ZONE 'America/Sao_Paulo')::date + interval '3 hours'",
         [userId]
       );
       const usadas = parseInt(contagem.rows[0].total || 0);
@@ -496,7 +496,7 @@ app.post('/api/imagina', async (req, res) => {
       const plano = await planoDoUsuario(decoded_email(token));
       const limite = LIMITES_PLANO[plano] ? LIMITES_PLANO[plano].imagens : 3;
       const contagem = await pool.query(
-        'SELECT COUNT(*) as total FROM image_usage WHERE user_id = $1 AND created_at >= CURRENT_DATE',
+        "SELECT COUNT(*) as total FROM image_usage WHERE user_id = $1 AND created_at >= (now() AT TIME ZONE 'America/Sao_Paulo')::date + interval '3 hours'",
         [userId]
       );
       const usadas = parseInt(contagem.rows[0].total || 0);
