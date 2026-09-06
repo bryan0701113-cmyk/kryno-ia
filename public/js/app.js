@@ -1222,20 +1222,18 @@ async function carregarUsersGod() {
 async function alternarDivulgador(email, temEmblema) {
   const pin = prompt('🔐 Confirmar que é o dono:\nDigite o PIN de verificação:');
   if (pin === null) return;
-  try {
-    const res = await fetch('/api/god/badge', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, divulgador: !temEmblema, pin })
-    });
-    const data = await res.json();
-    if (data.success) {
-      toast(!temEmblema ? '📣 Emblema de divulgador dado!' : '📣 Emblema retirado!');
-      carregarUsuariosGod();
-    } else {
-      alert(data.error || 'Erro');
-    }
-  } catch { alert('Erro de conexão'); }
+  const r = await fetchComRetry('/api/god/badge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, divulgador: !temEmblema, pin })
+  });
+  if (!r.ok) return alert('O servidor demorou pra responder (banco "acordando"). Tenta de novo em uns segundos.');
+  if (r.data.success) {
+    toast(!temEmblema ? '📣 Emblema de divulgador dado!' : '📣 Emblema retirado!');
+    carregarUsuariosGod();
+  } else {
+    alert(r.data.error || 'Erro');
+  }
 }
 
 async function definirRole(email, role) {
@@ -1402,21 +1400,41 @@ async function enviarEmblema() {
   if (!email || !/@/.test(email)) return alert('Digita um email de conta Google válido');
   const pin = prompt('🔐 Confirmar que é o dono:\nDigite o PIN de verificação:');
   if (pin === null) return;
-  try {
-    const res = await fetch('/api/god/emblema', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, emblema, acao, pin })
-    });
-    const data = await res.json();
-    if (data.success) {
-      const nome = emblema === 'admin' ? '🛡️ Administrador' : '📣 Divulgador';
-      toast((acao === 'dar' ? '✅ ' + nome + ' dado pra ' : '✅ ' + nome + ' retirado de ') + email);
-      document.getElementById('emblema-email').value = '';
-    } else {
-      alert(data.error || data.msg || 'Erro');
+  const r = await fetchComRetry('/api/god/emblema', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, emblema, acao, pin })
+  });
+  if (!r.ok) return alert('O servidor demorou pra responder (banco "acordando"). Tenta clicar em Enviar de novo em uns segundos.');
+  if (r.data.success) {
+    const nome = emblema === 'admin' ? '🛡️ Administrador' : '📣 Divulgador';
+    toast((acao === 'dar' ? '✅ ' + nome + ' dado pra ' : '✅ ' + nome + ' retirado de ') + email);
+    document.getElementById('emblema-email').value = '';
+  } else {
+    alert(r.data.error || r.data.msg || 'Erro');
+  }
+}
+
+
+// Fetch com 1 retentativa automática (Neon/DB pode "acordar" e a 1a chamada falha por timeout)
+async function fetchComRetry(url, options, tentativas = 2) {
+  for (let i = 0; i < tentativas; i++) {
+    try {
+      const res = await fetch(url, options);
+      const texto = await res.text();
+      try {
+        return { ok: true, data: JSON.parse(texto) };
+      } catch {
+        // resposta não é JSON (ex: página de erro/timeout da Vercel) - tenta de novo
+        if (i === tentativas - 1) return { ok: false, erro: 'servidor_lento' };
+        await new Promise(r => setTimeout(r, 800));
+      }
+    } catch {
+      if (i === tentativas - 1) return { ok: false, erro: 'rede' };
+      await new Promise(r => setTimeout(r, 800));
     }
-  } catch { alert('Erro de conexão'); }
+  }
+  return { ok: false, erro: 'rede' };
 }
 
 async function liberarPlano() {
@@ -1427,18 +1445,18 @@ async function liberarPlano() {
   const pin = prompt('🔐 Confirmar que é o dono:\nDigite o PIN de verificação:');
   if (pin === null) return;
 
-  const res = await fetch('/api/god/plan', {
+  const r = await fetchComRetry('/api/god/plan', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, plan, pin })
   });
-  const data = await res.json();
-  if (data.success) {
+  if (!r.ok) return alert('O servidor demorou pra responder (banco "acordando"). Tenta de novo em uns segundos.');
+  if (r.data.success) {
     const nomePlano = plan === 'pro' ? '💎 Kryno Pro' : plan === 'premium' ? '🥇 Kryno Premium' : 'Grátis';
     alert('✅ ' + nomePlano + ' liberado pra ' + email + '!');
     document.getElementById('plan-email').value = '';
   } else {
-    alert(data.error || 'Erro');
+    alert(r.data.error || 'Erro');
   }
 }
 

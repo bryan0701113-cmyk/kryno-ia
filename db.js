@@ -2,7 +2,10 @@ const { Pool } = require('pg');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+  max: 5,
+  connectionTimeoutMillis: 15000, // Neon pode "acordar" do zero, dá tempo antes de desistir
+  idleTimeoutMillis: 30000
 });
 
 let initialized = false;
