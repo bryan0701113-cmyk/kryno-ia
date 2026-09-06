@@ -65,9 +65,9 @@ function showChatScreen(user = null) {
   if (user) {
     const name = user.name || user.email || 'Convidado';
     avatar.textContent = name.trim().charAt(0).toUpperCase() || '?';
-    const badge = user.plan === 'premium' ? ' <span class="plan-badge plan-badge-premium">🥇 PREMIUM</span>'
-                : user.plan === 'pro' ? ' <span class="plan-badge plan-badge-pro">💎 PRO</span>' : '';
-    info.innerHTML = `<div class="u-name">${name}${badge}</div>`;
+    const badge = user.plan === 'premium' ? '<span class="plan-badge plan-badge-premium">🥇 PREMIUM</span>'
+                : user.plan === 'pro' ? '<span class="plan-badge plan-badge-pro">💎 PRO</span>' : '';
+    info.innerHTML = `<div class="u-name">${name}</div>` + (badge ? `<div class="u-badge">${badge}</div>` : '');
   } else {
     avatar.textContent = '?';
     info.innerHTML = `<div class="u-name">Convidado</div>`;

@@ -308,8 +308,8 @@ body {
   display: flex; align-items: center; gap: 12px;
 }
 .admin-user-item img { width: 36px; height: 36px; border-radius: 50%; }
-.admin-user-item .info { flex: 1; }
-.admin-user-item .name { font-weight: 600; color: #fff; }
+.admin-user-item .info { flex: 1; min-width: 0; }
+.admin-user-item .name { font-weight: 600; color: #fff; line-height: 1.5; overflow-wrap: anywhere; }
 .admin-user-item .email { color: #a99cc0; font-size: 13px; }
 .admin-user-item .banned-badge { background: rgba(239,68,68,.2); color: #f87171; padding: 4px 8px; border-radius: 6px; font-size: 12px; }
 
@@ -653,11 +653,15 @@ body {
 
 /* ===== BADGE DE PLANO (perfil) ===== */
 .plan-badge {
-  font-size: 10px; padding: 2px 7px; border-radius: 10px; vertical-align: middle;
-  margin-left: 5px; letter-spacing: .5px;
+  display: inline-block; font-size: 10px; font-weight: 700;
+  padding: 3px 8px; border-radius: 999px; letter-spacing: .5px;
+  white-space: nowrap; line-height: 1.3;
 }
 .plan-badge-pro { background: rgba(139,92,246,.25); color: #c4b5fd; border: 1px solid #8b5cf6; }
-.plan-badge-premium { background: rgba(255,215,0,.15); color: #ffd700; border: 1px solid #ffd700; }
+.plan-badge-premium { background: rgba(255,215,0,.15); color: #ffd700; border: 1px solid rgba(255,215,0,.8); }
+/* selo na linha de baixo do nome, sempre inteiro (nunca corta) */
+.u-badge { margin-top: 4px; }
+.u-badge .plan-badge { display: inline-block; box-shadow: 0 0 10px rgba(255,215,0,.15); }
 
 
 /* ===== TELA DE BAN ===== */
@@ -732,3 +736,7 @@ body {
 }
 .admin-plan-badge.pro { background: rgba(139, 92, 246, .28); color: #c4b5fd; }
 .admin-plan-badge.premium { background: rgba(245, 158, 11, .22); color: #fcd34d; }
+
+/* lista god: nome nunca corta */
+.god-user-item .g-info { min-width: 0; }
+.god-user-item .g-name { overflow-wrap: anywhere; line-height: 1.5; }
