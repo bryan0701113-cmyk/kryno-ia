@@ -100,6 +100,12 @@ async function initDB() {
 
     // Pagamentos Kiwify (log de quem pagou o quê)
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS image_usage (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
       CREATE TABLE IF NOT EXISTS payments (
         id SERIAL PRIMARY KEY,
         email TEXT NOT NULL,

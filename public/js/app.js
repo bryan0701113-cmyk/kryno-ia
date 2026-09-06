@@ -13,11 +13,13 @@ async function initApp() {
     const res = await fetch('/auth/me');
     const data = await res.json();
     if (data.authenticated) {
+      window.MEU_PLANO = (data.user && data.user.plan) || 'free';
       showChatScreen(data.user);
       if (isAdminBoot) abrirPainelAdmin();
       return;
     }
   } catch {}
+  window.MEU_PLANO = window.MEU_PLANO || 'free';
 
   if (isAdminBoot) {
     // Sem login (guest) mas veio validado pelo código admin: mostra o painel de qualquer forma
@@ -315,6 +317,20 @@ async function sendMessage() {
     return;
   }
 
+  // LIMITE DIÁRIO DO CONVIDADO: 20 mensagens/dia (plano grátis)
+  if (isGuest) {
+    const hoje = new Date().toISOString().slice(0, 10);
+    const chave = 'kryno_msgs_' + hoje;
+    const usadas = parseInt(localStorage.getItem(chave) || '0');
+    if (usadas >= 20) {
+      addMessage('user', message);
+      addMessage('bot', `🚦 *Limite diário atingido!* (20 mensagens/dia do plano grátis)\n\nEntra com sua conta Google e assina o Kryno Pro pra liberar *140 mensagens por dia* — ou Premium ilimitado! 💎\n\nAbre o *Planos* no menu 🚀`);
+      setTimeout(() => { try { abrirPlanos(); } catch {} }, 1200);
+      return;
+    }
+    localStorage.setItem(chave, usadas + 1);
+  }
+
   // Adicionar mensagem do usuário
   addMessage('user', message);
   input.value = '';
@@ -326,9 +342,11 @@ async function sendMessage() {
   // Indicador de digitação
   const typingEl = addTypingIndicator();
 
-  // A Kryno "pensa" um pouco antes de responder (mínimo 5 segundos)
+  // A Kryno "pensa" um pouco antes de responder
+  // Assinantes Pro/Premium têm resposta MAIS RÁPIDA (2s em vez de 5s)
+  const planoAtual = window.MEU_PLANO || 'free';
   const tempoInicio = Date.now();
-  const TEMPO_MINIMO = 5000;
+  const TEMPO_MINIMO = (planoAtual === 'pro' || planoAtual === 'premium') ? 2000 : 5000;
 
   try {
     const res = await fetch('/api/chat', {
@@ -350,6 +368,10 @@ async function sendMessage() {
 
     typingEl.remove();
     addMessage('bot', data.reply);
+    if (data.limite_atingido) {
+      // chegou no limite do plano — abre os planos pra assinar
+      setTimeout(() => { try { abrirPlanos(); } catch {} }, 1200);
+    }
 
     // Salvar no histórico local
     chatHistory.push({ role: 'user', content: message });
@@ -507,6 +529,19 @@ async function gerarImagem() {
   const input = document.getElementById('imagina-input');
   const prompt = input.value.trim();
   if (!prompt) return;
+
+  // LIMITE DIÁRIO DE IMAGENS DO CONVIDADO: 3/dia (plano grátis)
+  if (isGuest) {
+    const hoje = new Date().toISOString().slice(0, 10);
+    const chave = 'kryno_imgs_' + hoje;
+    const usadas = parseInt(localStorage.getItem(chave) || '0');
+    if (usadas >= 3) {
+      alert('🎨 Limite de imagens atingido! (3/dia do plano grátis)\n\nEntra com sua conta Google e assina: Kryno Pro = 10 imagens/dia, Premium = ilimitado! 💎');
+      try { abrirPlanos(); } catch {}
+      return;
+    }
+    localStorage.setItem(chave, usadas + 1);
+  }
 
   const gallery = document.getElementById('imagina-gallery');
   const loadingId = 'loading-' + Date.now();
@@ -864,6 +899,7 @@ async function abrirPlanos() {
     const res = await fetch('/auth/me');
     const data = await res.json();
     const plan = (data.authenticated && data.user && data.user.plan) || 'free';
+    window.MEU_PLANO = plan;
     document.querySelectorAll('.plano-card').forEach(card => {
       const isPro = card.classList.contains('plano-pro');
       const isPremium = card.classList.contains('plano-premium');
@@ -910,7 +946,8 @@ async function assinarPlano(plano) {
   if (!confirm(`Assinar ${nomePlano}?\n\nUse o MESMO email da sua conta Google (${email}) na hora de pagar, pra liberar o plano sozinho!`)) return;
 
   // Abre o checkout do Kiwify com o email já preenchido
-  window.open(LINK_PAGAMENTO[plano] + '?email=' + encodeURIComponent(email), '_blank');
+  // (location.href é mais confiável que window.open no app Android/TWA)
+  window.location.href = LINK_PAGAMENTO[plano] + '?email=' + encodeURIComponent(email);
 
   // Fica verificando se o pagamento caiu (libera sozinho)
   verificarPlanoAposPagamento(plano);

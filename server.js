@@ -333,6 +333,30 @@ app.get('/admin', (req, res) => {
 });
 
 // ===== CHAT =====
+// ===== LIMITES POR PLANO (recompensas reais) =====
+const LIMITES_PLANO = {
+  free:    { mensagens: 20,  imagens: 3 },   // plano gratuito
+  pro:     { mensagens: 140, imagens: 10 },  // Kryno Pro 💎
+  premium: { mensagens: Infinity, imagens: Infinity } // Kryno Premium 🥇
+};
+
+function decoded_email(token) {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    return decoded.email;
+  } catch { return ''; }
+}
+
+// Busca o plano atual do usuário direto do banco (mais confiável que o JWT antigo)
+async function planoDoUsuario(userEmail) {
+  try {
+    await ensureDB();
+    const r = await pool.query('SELECT plan FROM users WHERE email = $1', [userEmail]);
+    if (r.rows.length > 0 && r.rows[0].plan) return r.rows[0].plan;
+  } catch {}
+  return 'free';
+}
+
 app.post('/api/chat', async (req, res) => {
   const { message, image, history } = req.body;
   const token = req.cookies.token;
@@ -345,6 +369,28 @@ app.post('/api/chat', async (req, res) => {
       userId = String(decoded.id);
       userEmail = decoded.email;
     } catch {}
+  }
+
+  // LIMITE DE MENSAGENS POR DIA (só pra usuários logados; guest é controlado no cliente)
+  if (userId !== 'anonimo') {
+    try {
+      const plano = await planoDoUsuario(userEmail);
+      const limite = LIMITES_PLANO[plano] ? LIMITES_PLANO[plano].mensagens : 20;
+      const contagem = await pool.query(
+        'SELECT COUNT(*) as total FROM messages WHERE user_id = $1 AND timestamp >= CURRENT_DATE',
+        [userId]
+      );
+      const usadas = parseInt(contagem.rows[0].total || 0);
+      if (usadas >= limite) {
+        return res.json({
+          reply: `🚦 *Limite diário atingido!* (${limite} mensagens/dia do plano grátis)\n\nQuer conversar sem limites? O Kryno Pro libera *140 mensagens por dia* e o Premium é *ilimitado*! 💎\n\nAbre o menu *Planos* pra assinar — libera na hora depois do pagamento! 🚀`,
+          limite_atingido: true,
+          plano
+        });
+      }
+    } catch (e) {
+      console.log('⚠️ Erro ao checar limite de mensagens:', e.message);
+    }
   }
 
   // KILL SWITCH: se o dono desligou a IA, responde isso pra todo mundo
@@ -434,6 +480,34 @@ REGRAS DE FORMATAÇÃO (muito importante):
 // ===== IMAGINA (Pollinations.ai - Gratuito) =====
 app.post('/api/imagina', async (req, res) => {
   const { prompt } = req.body;
+
+  // LIMITE DE IMAGENS POR DIA (usuários logados; guest é controlado no cliente)
+  const token = req.cookies.token;
+  let userId = 'anonimo';
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      userId = String(decoded.id);
+    } catch {}
+  }
+  if (userId !== 'anonimo') {
+    try {
+      await ensureDB();
+      const plano = await planoDoUsuario(decoded_email(token));
+      const limite = LIMITES_PLANO[plano] ? LIMITES_PLANO[plano].imagens : 3;
+      const contagem = await pool.query(
+        'SELECT COUNT(*) as total FROM image_usage WHERE user_id = $1 AND created_at >= CURRENT_DATE',
+        [userId]
+      );
+      const usadas = parseInt(contagem.rows[0].total || 0);
+      if (usadas >= limite) {
+        return res.json({ error: `🎨 *Limite de imagens atingido!* (${limite}/dia do plano ${plano === 'free' ? 'grátis' : plano}).\n\nNo Kryno Pro você gera *10 imagens por dia* e no Premium é *ilimitado*! Abre o menu *Planos* pra assinar 🚀`, limite_atingido: true });
+      }
+    } catch (e) {
+      console.log('⚠️ Erro ao checar limite de imagens:', e.message);
+    }
+  }
+
   try {
     let cleanPrompt = prompt;
     if (cleanPrompt.toLowerCase().startsWith('imagina ')) {
@@ -443,6 +517,13 @@ app.post('/api/imagina', async (req, res) => {
     const encodedPrompt = encodeURIComponent(cleanPrompt);
     const seed = Math.floor(Math.random() * 1000000);
     const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&seed=${seed}&nologo=true&model=flux`;
+
+    // registra o uso de imagem pra usuários logados
+    if (userId !== 'anonimo') {
+      try {
+        await pool.query('INSERT INTO image_usage (user_id) VALUES ($1)', [userId]);
+      } catch {}
+    }
 
     res.json({ image_url: imageUrl, prompt: cleanPrompt });
   } catch (err) {
