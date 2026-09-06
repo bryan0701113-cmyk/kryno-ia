@@ -19,7 +19,7 @@ async function initApp() {
       iniciarVigilanciaBan();
       return;
     }
-    if (data.banned) { mostrarTelaBan(); return; }
+    if (data.banned) { mostrarTelaBan(); iniciarVigilanciaBan(); return; }
   } catch {}
   window.MEU_PLANO = window.MEU_PLANO || 'free';
 
