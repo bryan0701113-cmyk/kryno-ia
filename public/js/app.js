@@ -1230,7 +1230,8 @@ async function alternarDivulgador(email, temEmblema) {
   if (!r.ok) return alert('O servidor demorou pra responder (banco "acordando"). Tenta de novo em uns segundos.');
   if (r.data.success) {
     toast(!temEmblema ? '📣 Emblema de divulgador dado!' : '📣 Emblema retirado!');
-    carregarUsuariosGod();
+    carregarUsersGod();
+    carregarAdmin();
   } else {
     alert(r.data.error || 'Erro');
   }
@@ -1410,6 +1411,8 @@ async function enviarEmblema() {
     const nome = emblema === 'admin' ? '🛡️ Administrador' : '📣 Divulgador';
     toast((acao === 'dar' ? '✅ ' + nome + ' dado pra ' : '✅ ' + nome + ' retirado de ') + email);
     document.getElementById('emblema-email').value = '';
+    carregarUsersGod();
+    carregarAdmin();
   } else {
     alert(r.data.error || r.data.msg || 'Erro');
   }
