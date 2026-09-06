@@ -722,3 +722,13 @@ body {
 }
 .desbanido-box b { color: #fff; }
 .desbanido-sub { display: block; margin-top: 10px; font-size: 13px; color: #6ee7a0; }
+
+
+/* selo do plano na frente do nome (painel admin/god) */
+.admin-plan-badge {
+  display: inline-block; font-size: 10px; font-weight: 700;
+  padding: 2px 7px; border-radius: 10px; margin-right: 4px;
+  vertical-align: middle; letter-spacing: .5px;
+}
+.admin-plan-badge.pro { background: rgba(139, 92, 246, .28); color: #c4b5fd; }
+.admin-plan-badge.premium { background: rgba(245, 158, 11, .22); color: #fcd34d; }

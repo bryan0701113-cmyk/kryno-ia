@@ -867,7 +867,7 @@ async function carregarAdmin() {
       <div class="admin-user-item">
         ${u.picture ? `<img src="${u.picture}" alt="">` : '<div style="width:36px;height:36px;border-radius:50%;background:#333;display:flex;align-items:center;justify-content:center;">👤</div>'}
         <div class="info">
-          <div class="name">${u.name || 'Sem nome'}</div>
+          <div class="name">${u.plan === 'premium' ? '<span class="admin-plan-badge premium">🥇 PREMIUM</span> ' : u.plan === 'pro' ? '<span class="admin-plan-badge pro">💎 PRO</span> ' : ''}${escapeHtml(u.name || 'Sem nome')}</div>
           <div class="email">${u.email}</div>
         </div>
         ${u.banned
@@ -1151,7 +1151,7 @@ async function carregarUsersGod() {
     list.innerHTML = data.users.map(u => `
       <div class="god-user-item">
         <div class="g-info">
-          <div class="g-name">${escapeHtml(u.name || 'Sem nome')} <span class="g-role-badge">${u.role || 'user'}</span></div>
+          <div class="g-name">${u.plan === 'premium' ? '<span class="admin-plan-badge premium">🥇 PREMIUM</span> ' : u.plan === 'pro' ? '<span class="admin-plan-badge pro">💎 PRO</span> ' : ''}${escapeHtml(u.name || 'Sem nome')} <span class="g-role-badge">${u.role || 'user'}</span></div>
           <div class="g-email">${escapeHtml(u.email)}</div>
         </div>
         <select class="g-role-select" onchange="definirRole('${escapeHtml(u.email)}', this.value)">

@@ -82,7 +82,7 @@ function authMiddleware(req, res, next) {
 }
 
 function adminMiddleware(req, res, next) {
-  const token = req.cookies.token || req.headers.authorization?.replace('Bearer ');
+  const token = req.cookies.token || req.cookies.god_token || req.headers.authorization?.replace('Bearer ');
   if (!token) return res.status(401).json({ error: 'Não autenticado' });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
@@ -98,7 +98,7 @@ function adminMiddleware(req, res, next) {
 const GOD_PIN = process.env.GOD_PIN || '2012';
 
 function godMiddleware(req, res, next) {
-  const token = req.cookies.token || req.headers.authorization?.replace('Bearer ');
+  const token = req.cookies.god_token || req.cookies.token || req.headers.authorization?.replace('Bearer ');
   if (!token) return res.status(401).json({ error: 'Não autenticado' });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
@@ -998,7 +998,8 @@ app.post('/api/god/login', (req, res) => {
   const { pin } = req.body;
   if (pin === GOD_PIN) {
     const token = jwt.sign({ role: 'god', email: 'god@kryno' }, JWT_SECRET, { expiresIn: '6h' });
-    res.cookie('token', token, { httpOnly: true, maxAge: 6 * 60 * 60 * 1000 });
+    // cookie SEPARADO: o login do painel nunca mais substitui a conta do usuário
+    res.cookie('god_token', token, { httpOnly: true, maxAge: 6 * 60 * 60 * 1000 });
     res.json({ success: true, token });
   } else {
     res.status(401).json({ error: 'PIN do dono incorreto' });
