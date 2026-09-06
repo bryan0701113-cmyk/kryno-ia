@@ -82,7 +82,7 @@ function authMiddleware(req, res, next) {
 }
 
 function adminMiddleware(req, res, next) {
-  const token = req.cookies.token || req.cookies.god_token || req.headers.authorization?.replace('Bearer ');
+  const token = req.cookies.token || req.cookies.god_token || req.cookies.admin_token || req.headers.authorization?.replace('Bearer ');
   if (!token) return res.status(401).json({ error: 'Não autenticado' });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
@@ -718,7 +718,8 @@ app.post('/api/admin/login', (req, res) => {
   const { pass, pin } = req.body;
   if ((pass === ADMIN_PASS) || (pin === ADMIN_PIN)) {
     const token = jwt.sign({ role: 'admin', email: 'admin@kryno' }, JWT_SECRET, { expiresIn: '1d' });
-    res.cookie('token', token, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
+    // cookie SEPARADO: o login admin nunca substitui a conta do usuario
+    res.cookie('admin_token', token, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
     res.json({ success: true, token });
   } else {
     res.status(401).json({ error: 'Senha ou PIN incorretos' });
