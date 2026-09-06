@@ -225,16 +225,6 @@ async function initGoogleGIS() {
         document.getElementById('gis-btn-wrap'),
         { theme: 'outline', size: 'large', shape: 'pill', text: 'continue_with', locale: 'pt-BR', width: 280 }
       );
-      // botao antigo (redirect) fica como alternativa discreta
-      const fallback = document.createElement('button');
-      fallback.className = 'btn-google';
-      fallback.style.cssText = 'width:auto;padding:8px 18px;font-size:13px;opacity:.75;margin:0 auto 6px;';
-      fallback.textContent = 'ou login pelo navegador';
-      fallback.onclick = () => { window.location.href = '/auth/google'; };
-      const hintWrap = document.createElement('div');
-      hintWrap.style.cssText = 'display:flex;justify-content:center;';
-      hintWrap.appendChild(fallback);
-      container.appendChild(hintWrap);
     }
     googleGISPronto = true;
   } catch (err) {
