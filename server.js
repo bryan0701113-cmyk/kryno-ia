@@ -495,7 +495,23 @@ REGRAS DE FORMATAÇÃO (OBRIGATÓRIAS em toda resposta):
       reasoning_effort: 'high'
     });
 
-    const reply = response.choices[0].message.content;
+    let reply = response.choices[0].message.content;
+
+    // SANITIZACAO GARANTIDA: deixa a resposta perfeita pro formato do app (estilo WhatsApp)
+    reply = reply
+      .replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '$1/$2')   // \frac{a}{b} -> a/b
+      .replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '$1/$2')   // segunda passada (fracao aninhada)
+      .replace(/\\(?:times|cdot)\b/g, 'x')                        // \times -> x
+      .replace(/\\(?:div)\b/g, '/')
+      .replace(/\\text\{([^{}]+)\}/g, '$1')
+      .replace(/\\\[([\s\S]*?)\\\]/g, '$1')                  // remove \[ ... \]
+      .replace(/\\\(([\s\S]*?)\\\)/g, '$1')                  // remove \( ... \)
+      .replace(/\\(?:Pi|pi)\b/g, 'Lucro')
+      .replace(/\\(?:begin|end)\{[a-z*]+\}/g, '')
+      .replace(/\*\*([^*]+)\*\*/g, '*$1*')                      // **negrito** -> *negrito*
+      .replace(/\*\*([\s\S]+?)\*\*/g, '*$1*')                  // fallback ** ... ** multilinha
+      .replace(/^\s{0,3}#{1,6}\s+/gm, '')                         // remove ## cabeçalhos
+      .replace(/`{3,}[a-z]*\n?/gi, '');
 
     // PRIVACIDADE (LGPD): guests NUNCA são salvos no backend.
     // Histórico de guest fica apenas no localStorage do navegador dele.
