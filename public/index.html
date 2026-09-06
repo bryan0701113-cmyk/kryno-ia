@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kryno IA 🔥 - Sua IA Completa</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
-  <link rel="stylesheet" href="/css/style.css?v=38">
+  <link rel="stylesheet" href="/css/style.css?v=39">
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#a855f7">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -163,6 +163,14 @@
             <div id="admin-panel" class="hidden">
               <h2>🔐 Painel Admin - Kryno IA</h2>
               <div class="admin-stats" id="admin-stats"></div>
+
+              <!-- ===== CHAT GLOBAL ===== -->
+              <div class="god-subtitle">📢 Chat Global — aparece vermelho na tela de todo mundo</div>
+              <div class="god-plan-form">
+                <input type="text" id="broadcast-texto" placeholder="Ex: NOVA ATUALIZAÇÃO SAINDO 👀" maxlength="200">
+                <button onclick="enviarBroadcast()">📢 Enviar pra todo mundo</button>
+              </div>
+
               <h3>Usuários Cadastrados</h3>
               <div id="admin-users-list" class="admin-users-list"></div>
 
@@ -324,7 +332,7 @@
         </div>
       </div>
   </div>
-  <script src="/js/app.js?v=38"></script>
+  <script src="/js/app.js?v=39"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

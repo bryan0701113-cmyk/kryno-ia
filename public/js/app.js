@@ -8,6 +8,9 @@ async function initApp() {
     try { history.replaceState(null, '', '/'); } catch {}
   }
 
+  // CHAT GLOBAL: fica de olho se o dono mandou aviso pra todo mundo
+  iniciarVigilanciaBroadcast();
+
   // Check if user is already logged in (Google OAuth cookie)
   try {
     const res = await fetch('/auth/me');
@@ -1438,6 +1441,57 @@ async function fetchComRetry(url, options, tentativas = 2) {
     }
   }
   return { ok: false, erro: 'rede' };
+}
+
+// ===== CHAT GLOBAL =====
+async function enviarBroadcast() {
+  const texto = document.getElementById('broadcast-texto').value.trim();
+  if (!texto) return alert('Escreve a mensagem do aviso primeiro');
+  const r = await fetchComRetry('/api/admin/broadcast', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: texto })
+  });
+  if (!r.ok) return alert('O servidor demorou pra responder. Tenta de novo em uns segundos.');
+  if (r.data.success) {
+    toast('📢 Aviso enviado pra todo mundo!');
+    document.getElementById('broadcast-texto').value = '';
+  } else {
+    alert(r.data.error || 'Erro ao enviar');
+  }
+}
+
+let broadcastTimer = null;
+function iniciarVigilanciaBroadcast() {
+  if (broadcastTimer) return;
+  checarBroadcastNovo();
+  broadcastTimer = setInterval(checarBroadcastNovo, 15000);
+}
+
+async function checarBroadcastNovo() {
+  try {
+    const res = await fetch('/api/broadcasts');
+    const data = await res.json();
+    const bc = data.broadcasts && data.broadcasts[0];
+    if (!bc) return;
+    // so mostra se ainda tá fresco (2h) e o usuario ainda nao viu esse
+    const fresco = (Date.now() - new Date(bc.created_at).getTime()) < 2 * 60 * 60 * 1000;
+    const visto = localStorage.getItem('bc_visto') === String(bc.id);
+    if (fresco && !visto) {
+      localStorage.setItem('bc_visto', String(bc.id));
+      mostrarBannerGlobal(bc.message);
+    }
+  } catch {}
+}
+
+function mostrarBannerGlobal(texto) {
+  document.getElementById('banner-global')?.remove();
+  const b = document.createElement('div');
+  b.id = 'banner-global';
+  b.innerHTML = `<span class="bg-icone">📢</span><span class="bg-texto">${escapeHtml(texto)}</span><button class="bg-fechar" onclick="this.parentElement.remove()">✕</button>`;
+  document.body.appendChild(b);
+  // some sozinho depois de 8 segundos, sem atrapalhar ninguem
+  setTimeout(() => b.remove(), 8000);
 }
 
 async function liberarPlano() {

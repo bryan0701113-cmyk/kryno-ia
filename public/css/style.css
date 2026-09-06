@@ -774,3 +774,36 @@ body {
   0% { background-position: 0% 50%; }
   100% { background-position: 300% 50%; }
 }
+
+/* ===== CHAT GLOBAL: banner vermelho que nao atrapalha ===== */
+#banner-global {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, rgba(180, 20, 20, .95), rgba(255, 60, 40, .92));
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 120, 100, .6);
+  box-shadow: 0 6px 24px rgba(255, 40, 20, .35);
+  z-index: 9000;
+  animation: bannerEntra .35s ease;
+  pointer-events: auto;
+}
+#banner-global .bg-texto { flex: 1; }
+#banner-global .bg-fechar {
+  background: rgba(255,255,255,.15); color: #fff; border: none;
+  width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+  font-size: 12px; line-height: 1; flex-shrink: 0;
+}
+@keyframes bannerEntra {
+  from { opacity: 0; transform: translateX(-50%) translateY(-16px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
