@@ -16,8 +16,10 @@ async function initApp() {
       window.MEU_PLANO = (data.user && data.user.plan) || 'free';
       showChatScreen(data.user);
       if (isAdminBoot) abrirPainelAdmin();
+      iniciarVigilanciaBan();
       return;
     }
+    if (data.banned) { mostrarTelaBan(); return; }
   } catch {}
   window.MEU_PLANO = window.MEU_PLANO || 'free';
 
@@ -369,6 +371,7 @@ async function sendMessage() {
 
     typingEl.remove();
     addMessage('bot', data.reply);
+    if (data.banned) mostrarTelaBan();
     if (data.limite_atingido) {
       // chegou no limite do plano — abre os planos pra assinar
       setTimeout(() => { try { abrirPlanos(); } catch {} }, 1200);
@@ -1343,3 +1346,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 });
+
+
+// ===== BAN DE VERDADE =====
+function mostrarTelaBan() {
+  document.getElementById('login-screen')?.classList.add('hidden');
+  document.getElementById('chat-screen')?.classList.add('hidden');
+  document.getElementById('ban-screen')?.classList.remove('hidden');
+  try { document.title = 'Banido | Kryno IA'; } catch {}
+}
+
+// Checa a cada 20s se o usuário foi banido (expulsa na hora, mesmo já logado)
+function iniciarVigilanciaBan() {
+  setInterval(async () => {
+    try {
+      const res = await fetch('/auth/me');
+      const data = await res.json();
+      if (data.banned) mostrarTelaBan();
+    } catch {}
+  }, 20000);
+}

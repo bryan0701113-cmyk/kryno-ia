@@ -658,3 +658,38 @@ body {
 }
 .plan-badge-pro { background: rgba(139,92,246,.25); color: #c4b5fd; border: 1px solid #8b5cf6; }
 .plan-badge-premium { background: rgba(255,215,0,.15); color: #ffd700; border: 1px solid #ffd700; }
+
+
+/* ===== TELA DE BAN ===== */
+.ban-screen {
+  position: fixed; inset: 0; z-index: 99999;
+  background: linear-gradient(160deg, #1a0000 0%, #2d0000 55%, #000 100%);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.ban-screen.hidden { display: none; }
+.ban-box {
+  max-width: 420px; width: 100%;
+  background: rgba(120, 0, 0, .35);
+  border: 2px solid #ff2b2b;
+  border-radius: 20px;
+  padding: 40px 28px;
+  text-align: center;
+  box-shadow: 0 0 60px rgba(255, 43, 43, .35);
+  animation: banPulse 1.6s ease-in-out infinite;
+}
+@keyframes banPulse {
+  0%, 100% { box-shadow: 0 0 40px rgba(255,43,43,.28); }
+  50% { box-shadow: 0 0 75px rgba(255,43,43,.5); }
+}
+.ban-icon { font-size: 64px; margin-bottom: 12px; }
+.ban-box h2 {
+  color: #ff4d4d; font-size: 30px; margin: 0 0 14px;
+  text-transform: uppercase; letter-spacing: 2px;
+  text-shadow: 0 0 18px rgba(255, 43, 43, .7);
+}
+.ban-box p {
+  color: #ffb3b3; font-size: 17px; line-height: 1.5; margin: 0 0 8px;
+}
+.ban-box b { color: #fff; }
+.ban-sub { font-size: 14px !important; color: #cc8080 !important; margin-top: 16px !important; }

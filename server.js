@@ -86,7 +86,7 @@ function adminMiddleware(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Não autenticado' });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== 'admin') return res.status(403).json({ error: 'Acesso negado' });
+    if (decoded.role !== 'admin' && decoded.role !== 'god') return res.status(403).json({ error: 'Acesso negado' });
     req.user = decoded;
     next();
   } catch {
@@ -243,8 +243,13 @@ app.get('/auth/me', async (req, res) => {
     if (decoded.id) {
       try {
         await ensureDB();
-        const u = await pool.query('SELECT plan, role, name, picture FROM users WHERE id = $1', [decoded.id]);
+        const u = await pool.query('SELECT plan, role, name, picture, banned FROM users WHERE id = $1', [decoded.id]);
         if (u.rows.length > 0) {
+          // BAN DE VERDADE: usuário banido é expulso na hora
+          if (u.rows[0].banned == 1) {
+            res.clearCookie('token');
+            return res.json({ authenticated: false, banned: true });
+          }
           decoded.plan = u.rows[0].plan || 'free';
           decoded.role = u.rows[0].role || 'user';
           decoded.name = decoded.name || u.rows[0].name;
@@ -347,6 +352,15 @@ function decoded_email(token) {
   } catch { return ''; }
 }
 
+// Verifica se o usuário logado está banido (ban de verdade, na cara)
+async function usuarioBanido(userId) {
+  try {
+    await ensureDB();
+    const r = await pool.query('SELECT banned FROM users WHERE id = $1', [userId]);
+    return r.rows.length > 0 && r.rows[0].banned == 1;
+  } catch { return false; }
+}
+
 // Busca o plano atual do usuário direto do banco (mais confiável que o JWT antigo)
 async function planoDoUsuario(userEmail) {
   try {
@@ -369,6 +383,11 @@ app.post('/api/chat', async (req, res) => {
       userId = String(decoded.id);
       userEmail = decoded.email;
     } catch {}
+  }
+
+  // BAN DE VERDADE: usuário banido não conversa mais
+  if (userId !== 'anonimo' && await usuarioBanido(userId)) {
+    return res.json({ reply: '🚫 Você foi banido pelos administradores Brayan Rafael e Igor Dias.', banned: true });
   }
 
   // LIMITE DE MENSAGENS POR DIA (só pra usuários logados; guest é controlado no cliente)
@@ -489,6 +508,9 @@ app.post('/api/imagina', async (req, res) => {
       const decoded = jwt.verify(token, JWT_SECRET);
       userId = String(decoded.id);
     } catch {}
+  }
+  if (userId !== 'anonimo' && await usuarioBanido(userId)) {
+    return res.json({ error: '🚫 Você foi banido pelos administradores Brayan Rafael e Igor Dias.', banned: true });
   }
   if (userId !== 'anonimo') {
     try {
