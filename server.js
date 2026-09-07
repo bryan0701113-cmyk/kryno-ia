@@ -381,7 +381,7 @@ async function planoDoUsuario(userEmail) {
 }
 
 app.post('/api/chat', async (req, res) => {
-  const { message, image, history } = req.body;
+  const { message, image, history, sessionId } = req.body;
   const token = req.cookies.token;
   let userId = 'anonimo';
   let userEmail = 'anonimo';
@@ -527,8 +527,8 @@ REGRAS DE FORMATAÇÃO (OBRIGATÓRIAS em toda resposta):
         await ensureDB();
         const country = (req.headers['x-vercel-ip-country'] || req.headers['cf-ipcountry'] || '').toUpperCase();
         await pool.query(
-          `INSERT INTO messages (user_id, user_email, user_message, bot_reply, timestamp, model, country) VALUES ($1, $2, $3, $4, NOW(), $5, $6)`,
-          [userId, userEmail, message || '[imagem]', reply, GROQ_CHAT_MODEL, country]
+          `INSERT INTO messages (user_id, user_email, user_message, bot_reply, timestamp, model, country, session_id) VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7)`,
+          [userId, userEmail, message || '[imagem]', reply, GROQ_CHAT_MODEL, country, sessionId || null]
         );
       } catch (dbErr) {
         console.log('⚠️ DB não disponível, histórico não salvo');
@@ -639,7 +639,50 @@ app.get('/api/historico', async (req, res) => {
     // PRIVACIDADE: guest não tem histórico no servidor (fica no localStorage dele)
     if (!userId) return res.json({ messages: [] });
     await ensureDB();
-    const result = await pool.query('SELECT * FROM messages WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 50', [userId]);
+    // Agrupa por SESSAO (conversa completa), nao por mensagem individual.
+    // Mensagens antigas sem session_id (antes dessa correcao) cada uma vira sua propria sessao (comportamento antigo preservado).
+    const result = await pool.query(
+      `SELECT
+         COALESCE(session_id, 'legacy-' || id) AS id,
+         (ARRAY_AGG(user_message ORDER BY timestamp ASC))[1] AS user_message,
+         (ARRAY_AGG(bot_reply ORDER BY timestamp DESC))[1] AS bot_reply,
+         MIN(timestamp) AS created_at,
+         MAX(timestamp) AS timestamp,
+         COUNT(*) AS total_mensagens
+       FROM messages
+       WHERE user_id = $1
+       GROUP BY COALESCE(session_id, 'legacy-' || id)
+       ORDER BY MAX(timestamp) DESC
+       LIMIT 50`,
+      [userId]
+    );
+    res.json({ messages: result.rows });
+  } catch {
+    res.json({ messages: [] });
+  }
+});
+
+// Retorna TODAS as mensagens de UMA sessao (conversa completa), em ordem cronologica
+app.get('/api/historico/sessao/:sessionId', async (req, res) => {
+  try {
+    const token = req.cookies.token || req.headers.authorization?.replace('Bearer ');
+    let userId = null;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        userId = String(decoded.id);
+      } catch {}
+    }
+    if (!userId) return res.json({ messages: [] });
+    await ensureDB();
+    const { sessionId } = req.params;
+    let result;
+    if (sessionId.startsWith('legacy-')) {
+      const msgId = sessionId.replace('legacy-', '');
+      result = await pool.query('SELECT * FROM messages WHERE user_id = $1 AND id = $2', [userId, msgId]);
+    } else {
+      result = await pool.query('SELECT * FROM messages WHERE user_id = $1 AND session_id = $2 ORDER BY timestamp ASC', [userId, sessionId]);
+    }
     res.json({ messages: result.rows });
   } catch {
     res.json({ messages: [] });
@@ -700,10 +743,17 @@ app.delete('/api/historico/:id', async (req, res) => {
         userId = String(decoded.id);
       } catch {}
     }
-    await pool.query('DELETE FROM messages WHERE id = $1 AND user_id = $2', [req.params.id, userId]);
+    // Apaga a SESSAO inteira (todas as mensagens daquela conversa), nao so uma mensagem.
+    // :id pode ser um session_id real, ou 'legacy-<msgId>' pra mensagens antigas sem sessao.
+    const raw = req.params.id;
+    if (raw.startsWith('legacy-')) {
+      await pool.query('DELETE FROM messages WHERE id = $1 AND user_id = $2', [raw.replace('legacy-', ''), userId]);
+    } else {
+      await pool.query('DELETE FROM messages WHERE session_id = $1 AND user_id = $2', [raw, userId]);
+    }
     res.json({ success: true });
   } catch (err) {
-    console.error('Erro ao deletar mensagem:', err.message);
+    console.error('Erro ao deletar conversa:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });

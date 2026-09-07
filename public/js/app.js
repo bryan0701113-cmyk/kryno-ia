@@ -91,6 +91,17 @@ let isGuest = false;
 // ===== HISTÓRICO GUEST (local, privado por navegador - LGPD) =====
 const GUEST_KEY = 'kryno_guest_chats';
 const GUEST_CHAT_ID_KEY = 'guest_chat_id';
+const USER_SESSION_ID_KEY = 'kryno_user_session_id';
+
+// Sessao atual do usuario LOGADO (Google/Apple). Cria uma nova se nao existir.
+function getOrCreateUserSessionId() {
+  let id = localStorage.getItem(USER_SESSION_ID_KEY);
+  if (!id) {
+    id = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    localStorage.setItem(USER_SESSION_ID_KEY, id);
+  }
+  return id;
+}
 
 // Carrega sessões de guest (migra formato antigo automaticamente)
 function guestLoadSessions() {
@@ -264,6 +275,7 @@ async function handleGoogleCredential(response) {
 }
 
 async function logout() {
+  localStorage.removeItem(USER_SESSION_ID_KEY);
   await fetch('/auth/logout', { method: 'POST' });
   location.reload();
 }
@@ -306,6 +318,7 @@ function novaSessao() {
   uploadedImage = null;
   // Guest: limpa o chatId atual -> próxima mensagem abre uma sessão NOVA
   if (isGuest) localStorage.removeItem(GUEST_CHAT_ID_KEY);
+  else localStorage.removeItem(USER_SESSION_ID_KEY); // logado: proxima mensagem abre sessao nova tambem
   const container = document.getElementById('chat-messages');
   container.innerHTML = `
     <div class="welcome-msg">
@@ -350,8 +363,8 @@ async function renderSidebarHistorico() {
     }
     list.innerHTML = data.messages.slice(0, 8).map(m => `
       <div class="sidebar-hist-item" title="${escapeHtml(m.user_message)}">
-        <span onclick="loadConversation(${m.id})">${escapeHtml(m.user_message).slice(0, 36)}</span>
-        <button class="hist-delete-btn" onclick="event.stopPropagation(); deleteChat(${m.id})" title="Excluir">✕</button>
+        <span onclick="loadConversation('${m.id}')">${escapeHtml(m.user_message).slice(0, 36)}</span>
+        <button class="hist-delete-btn" onclick="event.stopPropagation(); deleteChat('${m.id}')" title="Excluir">✕</button>
       </div>
     `).join('');
   } catch {
@@ -413,7 +426,8 @@ async function sendMessage() {
       body: JSON.stringify({
         message,
         image: uploadedImage,
-        history: chatHistory.slice(-30)
+        history: chatHistory.slice(-30),
+        sessionId: isGuest ? undefined : getOrCreateUserSessionId()
       })
     });
     const data = await res.json();
@@ -710,14 +724,14 @@ async function carregarHistorico() {
     list.innerHTML = data.messages.map(m => `
       <div class="historico-item">
         <div class="hist-item-header">
-          <div class="timestamp">${new Date(m.timestamp).toLocaleString('pt-BR')}</div>
+          <div class="timestamp">${new Date(m.timestamp).toLocaleString('pt-BR')} · ${m.total_mensagens > 1 ? m.total_mensagens + ' mensagens' : '1 mensagem'}</div>
           <div class="hist-item-actions">
-            <button class="hist-open-btn" onclick="loadConversation(${m.id})" title="Abrir no chat">💬 Abrir</button>
-            <button class="hist-delete-btn" onclick="deleteChat(${m.id})" title="Excluir conversa">✕ Excluir</button>
+            <button class="hist-open-btn" onclick="loadConversation('${m.id}')" title="Abrir no chat">💬 Abrir</button>
+            <button class="hist-delete-btn" onclick="deleteChat('${m.id}')" title="Excluir conversa">✕ Excluir</button>
           </div>
         </div>
         <div class="user-msg">Você: ${escapeHtml(m.user_message)}</div>
-        <div class="bot-msg">Kryno: ${escapeHtml(m.bot_reply)}</div>
+        <div class="bot-msg">Kryno: ${escapeHtml(m.bot_reply)}${m.total_mensagens > 2 ? ' (...)' : ''}</div>
       </div>
     `).join('');
   } catch {
@@ -771,8 +785,8 @@ async function buscarHistorico() {
         <div class="hist-item-header">
           <div class="timestamp">${new Date(m.timestamp).toLocaleString('pt-BR')}</div>
           <div class="hist-item-actions">
-            <button class="hist-open-btn" onclick="loadConversation(${m.id})" title="Abrir no chat">💬 Abrir</button>
-            <button class="hist-delete-btn" onclick="deleteChat(${m.id})" title="Excluir conversa">✕ Excluir</button>
+            <button class="hist-open-btn" onclick="loadConversation('${m.session_id || ('legacy-' + m.id)}')" title="Abrir no chat">💬 Abrir</button>
+            <button class="hist-delete-btn" onclick="deleteChat('${m.session_id || ('legacy-' + m.id)}')" title="Excluir conversa">✕ Excluir</button>
           </div>
         </div>
         <div class="user-msg">Você: ${escapeHtml(m.user_message)}</div>
@@ -782,24 +796,27 @@ async function buscarHistorico() {
   } catch {}
 }
 
-async function loadConversation(id) {
+async function loadConversation(sessionId) {
   try {
-    const res = await fetch('/api/historico');
+    const res = await fetch(`/api/historico/sessao/${encodeURIComponent(sessionId)}`);
     const data = await res.json();
-    const msg = data.messages.find(m => m.id === id);
-    if (!msg) {
+    if (!data.messages || data.messages.length === 0) {
       alert('Conversa não encontrada.');
       return;
     }
-    // Switch to chat tab and show the conversation
-    chatHistory = [
-      { role: 'user', content: msg.user_message },
-      { role: 'assistant', content: msg.bot_reply }
-    ];
+    // Reconstroi TODA a conversa (nao so a ultima mensagem) na ordem certa
+    chatHistory = [];
     const container = document.getElementById('chat-messages');
     container.innerHTML = '';
-    addMessage('user', msg.user_message);
-    addMessage('bot', msg.bot_reply);
+    data.messages.forEach(m => {
+      chatHistory.push({ role: 'user', content: m.user_message });
+      chatHistory.push({ role: 'assistant', content: m.bot_reply });
+      addMessage('user', m.user_message);
+      addMessage('bot', m.bot_reply);
+    });
+    chatHistory = chatHistory.slice(-30);
+    // Continuar essa MESMA sessao se o usuario mandar mais mensagens
+    if (!sessionId.startsWith('legacy-')) localStorage.setItem(USER_SESSION_ID_KEY, sessionId);
     switchTab('chat');
   } catch (err) {
     alert('Erro ao carregar conversa.');

@@ -88,6 +88,13 @@ async function initDB() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)`);
 
+    // Sessao: agrupa mensagens da mesma conversa no historico (bug: cada mensagem
+    // virava uma "sessao" separada na sidebar pra usuarios logados)
+    try {
+      await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS session_id TEXT`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)`);
+    } catch {}
+
     // ===== GOD MODE (Nível 3) =====
     // Analytics: modelo usado e país de cada mensagem
     try {
