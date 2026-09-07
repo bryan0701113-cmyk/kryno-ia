@@ -487,12 +487,19 @@ REGRAS DE FORMATAÇÃO (OBRIGATÓRIAS em toda resposta):
       messages.push({ role: 'user', content: message });
     }
 
+    // OTIMIZACAO ADAPTATIVA: pergunta simples = modo rapido e barato;
+    // pergunta complexa = raciocinio profundo e resposta completa.
+    const msg = (message || '').toLowerCase();
+    const podeSerComplexa = msg.length > 120 || (message || '').split(/\s+/).length > 25;
+    const palavrasComplexas = /(calcul|matem|c[óo]dig|code|program|resolv|explic|passo a passo|prova|redaç|cronograma|f[óo]rmul|equaç|f[íi]sic|qu[íi]mic|geometr|algoritm|javascript|python|planej|estrat[ée]g|an[áa]lis|compar|escrev|crie|resum|monet[áa]rio|invest|juros|equilibri|termodin[âa]m)/i.test(message || '');
+    const complexa = podeSerComplexa || palavrasComplexas;
+
     const response = await groq.chat.completions.create({
       model: GROQ_CHAT_MODEL,
       messages: messages,
-      max_tokens: 4000,
+      max_tokens: complexa ? 4000 : 800,
       temperature: settings.temperature || 0.8,
-      reasoning_effort: 'high'
+      reasoning_effort: complexa ? 'high' : 'low'
     });
 
     let reply = response.choices[0].message.content;
